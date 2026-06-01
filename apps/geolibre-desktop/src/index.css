@@ -1281,6 +1281,10 @@ body,
     0 10px 15px -3px rgb(0 0 0 / 0.18),
     0 4px 6px -4px rgb(0 0 0 / 0.18);
   color: hsl(var(--popover-foreground));
+  /* Keep in sync with the popup root max-height in MapCanvas.tsx
+     (createIdentifyPopupElement). */
+  max-height: min(380px, calc(100vh - 128px));
+  overflow: hidden;
 }
 
 .geolibre-identify-popup .maplibregl-popup-close-button {
