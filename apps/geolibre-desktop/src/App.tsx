@@ -1,6 +1,7 @@
 import { DesktopShell } from "./components/layout/DesktopShell";
+import { useDesktopSettingsPersistence } from "./hooks/useDesktopSettings";
 import { useLayoutOptions } from "./hooks/useLayoutOptions";
-import { usePlugins } from "./hooks/usePlugins";
+import { useExternalPluginsReady } from "./hooks/usePlugins";
 import { useProjectUrlLoader } from "./hooks/useProjectUrlLoader";
 import { useRecentProjectsPersistence } from "./hooks/useRecentProjectsPersistence";
 import { useRuntimeEnvironmentVariables } from "./hooks/useRuntimeEnvironmentVariables";
@@ -11,7 +12,10 @@ export default function App() {
   const { themeMode, toggleThemeMode } = useThemeMode();
   const projectUrlLoadState = useProjectUrlLoader();
 
-  usePlugins();
+  useDesktopSettingsPersistence();
+  // Triggers the external plugin scan; the readiness flag is consumed in
+  // DesktopShell to gate project plugin state restoration.
+  useExternalPluginsReady();
   useRecentProjectsPersistence();
   useRuntimeEnvironmentVariables();
   return (

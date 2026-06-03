@@ -36,10 +36,7 @@ export interface GeoLibrePlugin {
     position: GeoLibreMapControlPosition,
   ) => boolean | void;
   getProjectState?: () => unknown;
-  applyProjectState?: (
-    app: GeoLibreAppAPI,
-    state: unknown,
-  ) => boolean | void;
+  applyProjectState?: (app: GeoLibreAppAPI, state: unknown) => boolean | void;
 }
 
 export interface GeoLibreAppAPI {
@@ -85,18 +82,18 @@ manager.activate("my-plugin", appApi);
 
 ## Built-in plugins
 
-| ID | Description |
-|----|-------------|
-| `osm-basemap` | OpenFreeMap Liberty style |
-| `carto-light` | CARTO Positron GL style |
-| `sample-geojson` | Loads `sample-data/sample.geojson` |
-| `maplibre-gl-basemap-control` | Adds a MapLibre basemap picker |
-| `maplibre-gl-components` | Adds the MapLibre Components control grid and panels for FlatGeobuf, COG, PMTiles, Zarr, LiDAR, and Gaussian splats |
-| `maplibre-gl-geo-editor` | Adds GeoEditor drawing controls |
-| `maplibre-gl-geoagent` | Adds GeoAgent map assistant controls |
-| `maplibre-gl-lidar` | Adds LiDAR controls |
-| `maplibre-gl-streetview` | Adds street view controls |
-| `maplibre-gl-swipe` | Adds map swipe controls |
+| ID                            | Description                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `osm-basemap`                 | OpenFreeMap Liberty style                                                                                           |
+| `carto-light`                 | CARTO Positron GL style                                                                                             |
+| `sample-geojson`              | Loads `sample-data/sample.geojson`                                                                                  |
+| `maplibre-gl-basemap-control` | Adds a MapLibre basemap picker                                                                                      |
+| `maplibre-gl-components`      | Adds the MapLibre Components control grid and panels for FlatGeobuf, COG, PMTiles, Zarr, LiDAR, and Gaussian splats |
+| `maplibre-gl-geo-editor`      | Adds GeoEditor drawing controls                                                                                     |
+| `maplibre-gl-geoagent`        | Adds GeoAgent map assistant controls                                                                                |
+| `maplibre-gl-lidar`           | Adds LiDAR controls                                                                                                 |
+| `maplibre-gl-streetview`      | Adds street view controls                                                                                           |
+| `maplibre-gl-swipe`           | Adds map swipe controls                                                                                             |
 
 ## Example plugin
 
@@ -120,8 +117,58 @@ Map control plugins can optionally expose `getMapControlPosition()` and `setMapC
 
 Plugins with serializable runtime settings can expose `getProjectState()` and `applyProjectState()` so GeoLibre can save and restore those settings in the project file. A wrapper should use these hooks to adapt upstream control APIs such as `getState()` without requiring every upstream package to implement a GeoLibre-specific interface.
 
-## Roadmap (v0.7)
+## External plugins
 
-- Dynamic plugin loading from a `plugins/` directory
-- Plugin manifest (`plugin.json`)
+Use the [GeoLibre plugin template](https://github.com/opengeos/geolibre-plugin-template) as the recommended starting point for external plugin development. The template includes a MapLibre control wrapper, a `plugin.json` manifest, a GeoLibre plugin entry point, and a `package:geolibre` script that builds the zip layout GeoLibre Desktop expects.
+
+GeoLibre Desktop loads external plugins from the app data `plugins/` directory at startup. External plugins are trusted code and can be installed as:
+
+- A `.zip` file with a root `plugin.json`.
+- An unpacked directory with a root `plugin.json`.
+- A HTTPS `plugin.json` manifest URL.
+
+The Plugins settings section can also add local development directories outside the app data folder. Each configured directory can contain plugin zips, unpacked plugin bundle folders, or be a single unpacked plugin bundle itself. Configured development directories are scanned before the app data `plugins/` directory, so a development copy can override an installed external plugin with the same ID. Built-in plugins still take precedence over all external plugins.
+
+For the web app, use manifest URLs. GeoLibre fetches the manifest, resolves `entry` and `style` relative to the manifest URL, then loads the bundled ESM entry. Browser loading requires HTTPS except for `localhost` and depends on the host allowing CORS.
+
+To include an external plugin folder in a GeoLibre web build, place the built plugin bundle under the Vite public directory:
+
+```text
+apps/geolibre-desktop/public/plugins/example-plugin/
+  plugin.json
+  dist/index.js
+  dist/style.css
+```
+
+Vite copies files from `public/` into the final web build, so the manifest URL becomes:
+
+```text
+/plugins/example-plugin/plugin.json
+```
+
+This works in both development and production web builds. The browser still cannot scan `/plugins/` at runtime, so each bundled plugin must be loaded by an explicit manifest URL, such as one entered in Settings > Plugins. Manifest URLs are saved in the project `plugins.manifestUrls` array so reloading a shared project can fetch its external plugins before restoring active plugin state. For plugins that should always ship as part of GeoLibre without user configuration, prefer registering them as built-in plugins.
+
+```json
+{
+  "id": "example-plugin",
+  "name": "Example Plugin",
+  "version": "0.1.0",
+  "entry": "dist/index.js",
+  "description": "Optional short description",
+  "style": "dist/style.css"
+}
+```
+
+The `entry` file must export a `GeoLibrePlugin` as either the default export or a named `plugin` export. The exported plugin `id`, `name`, and `version` must match `plugin.json`. The entry must be a self-contained `.js` or `.mjs` bundle because relative module imports inside the zip are not resolved by this first loader.
+
+External plugin entries are executed with `import(URL.createObjectURL(...))`, which is why the desktop CSP in `tauri.conf.json` includes `blob:` in `script-src`. Removing `blob:` from `script-src` breaks external plugin loading. Combined with `'unsafe-eval'`, this means code that can create a blob URL can execute scripts, which is acceptable because external plugins are trusted local files installed by the user.
+
+Manifest paths must be relative zip paths with forward slashes, no leading slash, no backslashes, and no `..` segments. External plugins cannot use `activeByDefault`; saved project state can still reactivate an external plugin by ID after the zip is loaded.
+
+The optional `style` CSS is injected globally into the host document, not scoped to the plugin. Plugin authors are responsible for scoping their selectors (for example with a plugin-specific class prefix) so broad rules do not restyle the rest of the app. Injected CSS can also issue network requests through `url()` references and `@import`, so a plugin stylesheet can load external fonts, images, or additional sheets; treat plugin CSS with the same trust expectations as plugin code.
+
+When using the template, update `geolibre-plugin/plugin.json` and `src/geolibre.ts` together so `id`, `name`, and `version` stay in sync. Run `npm run package:geolibre`, then either copy the generated zip into the desktop app data `plugins/` directory, add the template's `geolibre-plugin/` directory in Settings > Plugins for local development, or host the `geolibre-plugin/` directory and add its `plugin.json` URL.
+
+## Future plugin work
+
 - Sandboxed worker plugins

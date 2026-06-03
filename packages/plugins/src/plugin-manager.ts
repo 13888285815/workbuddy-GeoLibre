@@ -59,6 +59,10 @@ export class PluginManager {
     }
 
     return {
+      // The manager does not track external plugin sources; callers that
+      // persist project state must overwrite manifestUrls with the real list
+      // (see TopToolbar.handleSave and persistProjectPluginState).
+      manifestUrls: [],
       activePluginIds: Array.from(this.plugins.keys()).filter((id) =>
         this.active.has(id),
       ),
@@ -67,9 +71,7 @@ export class PluginManager {
     };
   }
 
-  getMapControlPosition(
-    id: string,
-  ): GeoLibreMapControlPosition | undefined {
+  getMapControlPosition(id: string): GeoLibreMapControlPosition | undefined {
     return this.plugins.get(id)?.getMapControlPosition?.();
   }
 

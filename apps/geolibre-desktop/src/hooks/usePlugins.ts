@@ -14,7 +14,10 @@ import {
 import type { MapController } from "@geolibre/map";
 import type { GeoLibreMapControlPosition } from "@geolibre/plugins";
 import type { RefObject } from "react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { loadExternalPlugins } from "../lib/external-plugins";
+import { mergeStringLists } from "../lib/string-lists";
+import { useDesktopSettingsStore } from "./useDesktopSettings";
 
 const RASTER_PROXY_PATH = "/__geolibre_raster_proxy";
 
@@ -34,6 +37,12 @@ manager.registerAll([
   maplibreSwipePlugin,
   maplibreComponentsPlugin,
 ]);
+
+let externalPluginsLoaded = false;
+let externalPluginsLoadPromise: Promise<void> | null = null;
+let externalPluginsLoadKey: string | null = null;
+const externalPluginsListeners = new Set<() => void>();
+const EMPTY_PLUGIN_MANIFEST_URLS: string[] = [];
 
 export function getPluginManager(): PluginManager {
   return manager;
@@ -68,9 +77,97 @@ export function usePluginRegistry() {
   };
 }
 
-export function usePlugins() {
-  // Built-in plugin registration happens at module load so the toolbar can
-  // render plugin menu items on the first pass.
+// Built-in plugins are registered at module load so the toolbar can render
+// plugin menu items on the first pass. This hook additionally kicks off the
+// external plugin scan and reports whether it has finished.
+export function useExternalPluginsReady(): boolean {
+  const desktopSettings = useDesktopSettingsStore(
+    (state) => state.desktopSettings,
+  );
+  const projectPluginManifestUrls = useAppStore(
+    (state) => state.projectPlugins?.manifestUrls ?? EMPTY_PLUGIN_MANIFEST_URLS,
+  );
+
+  useEffect(() => {
+    void ensureExternalPluginsLoadedWithSettings(
+      desktopSettings,
+      projectPluginManifestUrls,
+    );
+  }, [desktopSettings, projectPluginManifestUrls]);
+
+  return useSyncExternalStore(
+    (listener) => {
+      externalPluginsListeners.add(listener);
+      return () => externalPluginsListeners.delete(listener);
+    },
+    () => externalPluginsLoaded,
+    () => externalPluginsLoaded,
+  );
+}
+
+function ensureExternalPluginsLoadedWithSettings(
+  desktopSettings: ReturnType<
+    typeof useDesktopSettingsStore.getState
+  >["desktopSettings"],
+  projectPluginManifestUrls: string[],
+): Promise<void> {
+  const pluginManifestUrls = mergeStringLists(
+    desktopSettings.pluginManifestUrls,
+    projectPluginManifestUrls,
+  );
+  const loadKey = JSON.stringify({
+    additionalPluginDirectories: desktopSettings.additionalPluginDirectories,
+    pluginManifestUrls,
+  });
+  if (externalPluginsLoaded && externalPluginsLoadKey === loadKey) {
+    return Promise.resolve();
+  }
+  if (externalPluginsLoadPromise && externalPluginsLoadKey === loadKey) {
+    return externalPluginsLoadPromise;
+  }
+
+  setExternalPluginsLoaded(false);
+  externalPluginsLoadKey = loadKey;
+  // Serialize scans: loadExternalPlugins reads and writes module-level state
+  // (the loaded-plugin map) across awaits, so two in-flight scans could both
+  // pass the dedup check and double-register the same plugin. Waiting for the
+  // previous scan (which never rejects) keeps at most one scan running.
+  const previousLoad = externalPluginsLoadPromise ?? Promise.resolve();
+  const loadPromise = previousLoad
+    .then(() =>
+      loadExternalPlugins(
+        manager,
+        desktopSettings.additionalPluginDirectories,
+        pluginManifestUrls,
+      ),
+    )
+    .then((result) => {
+      if (result.loadedPluginIds.length) {
+        console.info(
+          `Loaded external GeoLibre plugins from ${result.pluginSources.join(
+            ", ",
+          )}: ${result.loadedPluginIds.join(", ")}`,
+        );
+      }
+      for (const issue of result.issues) {
+        console.warn(
+          `Skipped external plugin archive '${issue.archiveName}': ${issue.message}`,
+        );
+      }
+    })
+    .catch((error) => {
+      console.warn("Could not load external GeoLibre plugins.", error);
+    })
+    .finally(() => {
+      // A settings change can start a new load while this one is in flight.
+      // Only the load that still owns the current key may mark plugins ready.
+      if (externalPluginsLoadKey !== loadKey) return;
+      externalPluginsLoadPromise = null;
+      setExternalPluginsLoaded(true);
+    });
+
+  externalPluginsLoadPromise = loadPromise;
+  return loadPromise;
 }
 
 export function createAppAPI(
@@ -102,8 +199,9 @@ export function createAppAPI(
       control: Parameters<MapController["addControl"]>[0],
       position?: Parameters<MapController["addControl"]>[1],
     ) => mapControllerRef?.current?.addControl(control, position) ?? false,
-    removeMapControl: (control: Parameters<MapController["removeControl"]>[0]) =>
-      mapControllerRef?.current?.removeControl(control),
+    removeMapControl: (
+      control: Parameters<MapController["removeControl"]>[0],
+    ) => mapControllerRef?.current?.removeControl(control),
     setBuiltInMapControlVisible: (
       control: Parameters<MapController["setBuiltInControlVisible"]>[0],
       visible: boolean,
@@ -119,10 +217,8 @@ export function createAppAPI(
       control: Parameters<MapController["setBuiltInControlPosition"]>[0],
       position: Parameters<MapController["setBuiltInControlPosition"]>[1],
     ) =>
-      mapControllerRef?.current?.setBuiltInControlPosition(
-        control,
-        position,
-      ) ?? false,
+      mapControllerRef?.current?.setBuiltInControlPosition(control, position) ??
+      false,
   };
 }
 
@@ -167,7 +263,9 @@ function localPathFromReference(value: string): string {
 }
 
 function fetchDevRasterProxy(url: string): Promise<ArrayBuffer> {
-  return fetchArrayBuffer(`${RASTER_PROXY_PATH}?url=${encodeURIComponent(url)}`);
+  return fetchArrayBuffer(
+    `${RASTER_PROXY_PATH}?url=${encodeURIComponent(url)}`,
+  );
 }
 
 async function fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
@@ -181,6 +279,12 @@ async function fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
 function isTauriRuntime(): boolean {
   if (typeof window === "undefined") return false;
   return Boolean((window as TauriRuntimeWindow).__TAURI_INTERNALS__);
+}
+
+function setExternalPluginsLoaded(loaded: boolean): void {
+  if (externalPluginsLoaded === loaded) return;
+  externalPluginsLoaded = loaded;
+  for (const listener of externalPluginsListeners) listener();
 }
 
 function isLocalDevHost(): boolean {
@@ -208,7 +312,12 @@ function normalizeBytes(bytes: number[] | Uint8Array): ArrayBuffer {
 }
 
 function persistProjectPluginState(previousJson: string): void {
-  const nextState = manager.getProjectState();
+  const nextState = {
+    ...manager.getProjectState(),
+    manifestUrls:
+      useAppStore.getState().projectPlugins?.manifestUrls ??
+      EMPTY_PLUGIN_MANIFEST_URLS,
+  };
   if (JSON.stringify(nextState) === previousJson) return;
   useAppStore.getState().setProjectPlugins(nextState);
 }

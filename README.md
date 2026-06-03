@@ -51,13 +51,13 @@ Open a project by URL:
 
 Supported query parameters:
 
-| Parameter | Example | Description |
-| --- | --- | --- |
-| `url` | `url=https://data.geolibre.app/opera-dswx.geolibre.json` | Loads a `.geolibre.json` project from a public URL. |
-| `layout` | `layout=compact` | Uses the compact embed layout with icon-only toolbar buttons and hidden project metadata. `embed` and `iframe` are aliases. |
-| `toolbar` | `toolbar=icons` | Shows icon-only toolbar buttons without enabling the full compact layout. |
-| `panels` | `panels=none` | Hides the Layers, Style, and Attribute table panels. `hidden`, `hide`, and `off` are aliases. |
-| `hidePanels` | `hidePanels=true` | Alternative way to hide the Layers, Style, and Attribute table panels. |
+| Parameter    | Example                                                  | Description                                                                                                                 |
+| ------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `url`        | `url=https://data.geolibre.app/opera-dswx.geolibre.json` | Loads a `.geolibre.json` project from a public URL.                                                                         |
+| `layout`     | `layout=compact`                                         | Uses the compact embed layout with icon-only toolbar buttons and hidden project metadata. `embed` and `iframe` are aliases. |
+| `toolbar`    | `toolbar=icons`                                          | Shows icon-only toolbar buttons without enabling the full compact layout.                                                   |
+| `panels`     | `panels=none`                                            | Hides the Layers, Style, and Attribute table panels. `hidden`, `hide`, and `off` are aliases.                               |
+| `hidePanels` | `hidePanels=true`                                        | Alternative way to hide the Layers, Style, and Attribute table panels.                                                      |
 
 Use compact mode for narrow embeds. This shows icon-only toolbar buttons and hides project metadata:
 
@@ -125,6 +125,10 @@ docs/                   # Architecture & API docs
 ## Add a plugin
 
 Built-in plugins live in `packages/plugins/src/plugins/` and are registered by the desktop app in `apps/geolibre-desktop/src/hooks/usePlugins.ts`. Map control plugins can expose a control position through `getMapControlPosition()` and `setMapControlPosition()` so the Plugins menu can move them between map corners.
+
+For external plugin development, start from the [GeoLibre plugin template](https://github.com/opengeos/geolibre-plugin-template). It includes a `plugin.json` manifest, a GeoLibre plugin wrapper entry point, and a `package:geolibre` script that creates a zip file for the desktop app data `plugins/` directory. During development, Settings > Plugins can scan an additional local plugin directory, including an unpacked bundle folder such as the template's `geolibre-plugin/` directory, or a hosted `plugin.json` manifest URL. See the [Plugin API](docs/plugin-api.md) for the external plugin contract.
+
+For web builds, an external plugin can be bundled by placing its built folder under `apps/geolibre-desktop/public/plugins/<plugin-id>/` and loading `/plugins/<plugin-id>/plugin.json` as a manifest URL. Browsers cannot scan plugin folders at runtime, so bundled web plugins still need explicit manifest URLs unless they are registered as built-in plugins.
 
 1. Create a plugin file in `packages/plugins/src/plugins/`.
 

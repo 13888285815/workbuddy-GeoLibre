@@ -61,17 +61,13 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import {
-  type FormEvent,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { type FormEvent, useRef, useState, useSyncExternalStore } from "react";
 import {
   createAppAPI,
   getPluginManager,
   usePluginRegistry,
 } from "../../hooks/usePlugins";
+import { useDesktopSettingsStore } from "../../hooks/useDesktopSettings";
 import type { ThemeMode } from "../../hooks/useThemeMode";
 import {
   isTauri,
@@ -80,6 +76,7 @@ import {
   RecentProjectGoneError,
   saveProjectFile,
 } from "../../lib/tauri-io";
+import { mergeStringLists } from "../../lib/string-lists";
 import { normalizeProjectUrl } from "../../lib/urls";
 import { resolveProjectXyzLayers } from "../../lib/xyz-url";
 import { AddDataDialog, type AddDataKind } from "./AddDataDialog";
@@ -286,6 +283,10 @@ export function TopToolbar({
   const handleSave = async (): Promise<boolean> => {
     const state = useAppStore.getState();
     const defaultProjectName = state.projectName.trim() || "Untitled Project";
+    const pluginManifestUrls = mergeStringLists(
+      state.projectPlugins?.manifestUrls ?? [],
+      useDesktopSettingsStore.getState().desktopSettings.pluginManifestUrls,
+    );
     const project = projectFromStore({
       projectName: defaultProjectName,
       mapView: mapControllerRef.current?.readView() ?? state.mapView,
@@ -294,7 +295,10 @@ export function TopToolbar({
       basemapOpacity: state.basemapOpacity,
       layers: state.layers,
       preferences: state.preferences,
-      plugins: getPluginManager().getProjectState(),
+      plugins: {
+        ...getPluginManager().getProjectState(),
+        manifestUrls: pluginManifestUrls,
+      },
       metadata: state.metadata,
     });
     const content = serializeProject(project);
