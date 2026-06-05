@@ -47,20 +47,26 @@ import {
   Label,
 } from "@geolibre/ui";
 import {
+  Bug,
+  CircleHelp,
   Database,
   FolderOpen,
   History,
+  Info,
   Layers,
   Link2,
   Map,
+  MessageSquare,
   Moon,
   Puzzle,
+  RefreshCw,
   Save,
   SlidersHorizontal,
   Sun,
   Wrench,
   X,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { type FormEvent, useRef, useState, useSyncExternalStore } from "react";
 import {
   createAppAPI,
@@ -86,10 +92,12 @@ import { SettingsDialog } from "./SettingsDialog";
 
 interface TopToolbarProps {
   compact?: boolean;
+  diagnosticsErrorCount: number;
   mapControllerRef: React.RefObject<MapController | null>;
   showLabels?: boolean;
   showProjectInfo?: boolean;
   themeMode: ThemeMode;
+  onOpenDiagnostics: () => void;
   onToggleThemeMode: () => void;
 }
 
@@ -119,6 +127,16 @@ const PLUGIN_POSITION_ITEMS: Array<{
   { value: "bottom-right", label: "Bottom right" },
 ];
 
+const FEEDBACK_URL = "https://github.com/opengeos/GeoLibre/issues";
+
+async function openExternalLink(url: string): Promise<void> {
+  if (isTauri()) {
+    await openUrl(url);
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 function formatRecentProjectTime(openedAt: string): string {
   const openedDate = new Date(openedAt);
   if (Number.isNaN(openedDate.getTime())) return "";
@@ -134,10 +152,12 @@ function formatRecentProjectTime(openedAt: string): string {
 
 export function TopToolbar({
   compact = false,
+  diagnosticsErrorCount,
   mapControllerRef,
   showLabels = true,
   showProjectInfo = true,
   themeMode,
+  onOpenDiagnostics,
   onToggleThemeMode,
 }: TopToolbarProps) {
   const loadProject = useAppStore((s) => s.loadProject);
@@ -168,6 +188,8 @@ export function TopToolbar({
   const [projectUrlError, setProjectUrlError] = useState<string | null>(null);
   const [projectUrlLoading, setProjectUrlLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [checkForUpdatesRequest, setCheckForUpdatesRequest] = useState(0);
   const projectUrlAbortRef = useRef<AbortController | null>(null);
   const recentAbortRef = useRef<AbortController | null>(null);
 
@@ -707,6 +729,51 @@ export function TopToolbar({
         mapControllerRef={mapControllerRef}
         showLabels={showLabels}
       />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            className={toolbarButtonClass}
+            variant="ghost"
+            size={toolbarButtonSize}
+            aria-label="Help"
+          >
+            <CircleHelp className={toolbarIconClassName} />
+            {renderToolbarLabel("Help")}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuLabel>Help</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onOpenDiagnostics}>
+            <Bug className="mr-2 h-3.5 w-3.5" />
+            Diagnostics
+            {diagnosticsErrorCount > 0 ? (
+              <span className="ml-2 rounded bg-destructive px-1.5 py-0.5 text-[10px] leading-none text-destructive-foreground">
+                {diagnosticsErrorCount}
+              </span>
+            ) : null}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => void openExternalLink(FEEDBACK_URL)}
+          >
+            <MessageSquare className="mr-2 h-3.5 w-3.5" />
+            Give feedback
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              setAboutOpen(true);
+              setCheckForUpdatesRequest((value) => value + 1);
+            }}
+          >
+            <RefreshCw className="mr-2 h-3.5 w-3.5" />
+            Check for updates
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setAboutOpen(true)}>
+            <Info className="mr-2 h-3.5 w-3.5" />
+            About
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <AddDataDialog
         kind={addDataKind}
         mapControllerRef={mapControllerRef}
@@ -783,10 +850,10 @@ export function TopToolbar({
         </DialogContent>
       </Dialog>
       <AboutDialog
-        buttonClassName={toolbarButtonClass}
-        buttonSize={toolbarButtonSize}
-        iconClassName={toolbarIconClassName}
-        showLabels={showLabels}
+        checkForUpdatesRequest={checkForUpdatesRequest}
+        open={aboutOpen}
+        renderTrigger={false}
+        onOpenChange={setAboutOpen}
       />
       <div className="ml-auto flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
         <Button

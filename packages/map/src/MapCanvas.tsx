@@ -34,7 +34,16 @@ const WMS_IDENTIFY_INFO_FORMATS = [
 
 export interface MapCanvasProps {
   controllerRef?: React.MutableRefObject<MapController | null>;
+  onMapDiagnosticEvent?: (event: MapDiagnosticEvent) => void;
   onControllerReady?: () => void;
+}
+
+export interface MapDiagnosticEvent {
+  message: string;
+  detail?: string;
+  source?: string;
+  status?: number;
+  url?: string;
 }
 
 function stringifyIdentifyValue(value: unknown): string {
@@ -441,8 +450,99 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
+function recordFromUnknown(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function stringProperty(
+  record: Record<string, unknown> | null,
+  key: string,
+): string | undefined {
+  const value = record?.[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function numberProperty(
+  record: Record<string, unknown> | null,
+  key: string,
+): number | undefined {
+  const value = record?.[key];
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  const record = recordFromUnknown(error);
+  return stringProperty(record, "message") ?? "MapLibre reported an error.";
+}
+
+function stringifyDiagnosticDetail(value: unknown): string | undefined {
+  const seen = new WeakSet<object>();
+  try {
+    return JSON.stringify(
+      value,
+      (key, nestedValue: unknown) => {
+        // Only clamp object-valued targets (Map, XHR, DOM nodes) that risk
+        // circular or huge output; keep string targets such as tile URLs.
+        if (
+          key === "target" &&
+          typeof nestedValue === "object" &&
+          nestedValue !== null
+        ) {
+          return "[Map]";
+        }
+        if (typeof nestedValue !== "object" || nestedValue === null) {
+          return nestedValue;
+        }
+        if (seen.has(nestedValue)) return "[Circular]";
+        seen.add(nestedValue);
+        return nestedValue;
+      },
+      2,
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function mapErrorDiagnosticEvent(event: maplibregl.ErrorEvent): MapDiagnosticEvent {
+  const eventRecord = recordFromUnknown(event);
+  const errorRecord = recordFromUnknown(event.error);
+  const source =
+    stringProperty(eventRecord, "sourceId") ??
+    stringProperty(errorRecord, "sourceId");
+  const url =
+    stringProperty(eventRecord, "url") ??
+    stringProperty(errorRecord, "url") ??
+    stringProperty(errorRecord, "resource");
+  const status =
+    numberProperty(eventRecord, "status") ?? numberProperty(errorRecord, "status");
+
+  return {
+    message: errorMessage(event.error),
+    detail: stringifyDiagnosticDetail({
+      type: event.type,
+      source,
+      status,
+      url,
+      dataType: eventRecord?.dataType,
+      sourceDataType: eventRecord?.sourceDataType,
+      tile: eventRecord?.tile,
+      error: event.error,
+    }),
+    source,
+    status,
+    url,
+  };
+}
+
 export const MapCanvas = memo(function MapCanvas({
   controllerRef,
+  onMapDiagnosticEvent,
   onControllerReady,
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -453,6 +553,8 @@ export const MapCanvas = memo(function MapCanvas({
   // caller passes a non-memoized callback.
   const onControllerReadyRef = useRef(onControllerReady);
   onControllerReadyRef.current = onControllerReady;
+  const onMapDiagnosticEventRef = useRef(onMapDiagnosticEvent);
+  onMapDiagnosticEventRef.current = onMapDiagnosticEvent;
 
   const basemapStyleUrl = useAppStore((s) => s.basemapStyleUrl);
   const basemapVisible = useAppStore((s) => s.basemapVisible);
@@ -486,6 +588,12 @@ export const MapCanvas = memo(function MapCanvas({
       setPointerCoords([e.lngLat.lng, e.lngLat.lat]);
     });
     map.on("mouseout", () => setPointerCoords(null));
+    map.on("error", (event) => {
+      // Cancelled tile fetches are already surfaced (as info) by the
+      // network capture; logging them here would double-count aborts.
+      if (isAbortError(event.error)) return;
+      onMapDiagnosticEventRef.current?.(mapErrorDiagnosticEvent(event));
+    });
 
     const updateView = (event?: { originalEvent?: unknown }) =>
       setMapView(mc.readView(), Boolean(event?.originalEvent));

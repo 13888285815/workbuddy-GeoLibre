@@ -10,7 +10,7 @@ import {
 } from "@geolibre/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { CheckCircle2, ExternalLink, Info, Map, RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const LINKS = [
   {
@@ -35,6 +35,10 @@ interface GitHubRelease {
 }
 
 interface AboutDialogProps {
+  checkForUpdatesRequest?: number;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  renderTrigger?: boolean;
   buttonClassName?: string;
   buttonSize?: ButtonProps["size"];
   iconClassName?: string;
@@ -78,23 +82,31 @@ function formatVersion(version: string): string {
 }
 
 export function AboutDialog({
+  checkForUpdatesRequest = 0,
+  open,
+  onOpenChange,
+  renderTrigger = true,
   buttonClassName,
   buttonSize = "sm",
   iconClassName,
   showLabels = true,
 }: AboutDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const handledCheckForUpdatesRequestRef = useRef(0);
+  const wasOpenRef = useRef(false);
+  const dialogOpen = open ?? internalOpen;
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const resetUpdateState = () => {
+  const resetUpdateState = useCallback(() => {
     setUpdateStatus("idle");
     setLatestVersion(null);
     setUpdateError(null);
-  };
+  }, []);
 
   const handleCheckForUpdates = async () => {
     abortRef.current?.abort();
@@ -150,23 +162,53 @@ export function AboutDialog({
     }
   };
 
+  useEffect(() => {
+    if (dialogOpen && !wasOpenRef.current) resetUpdateState();
+    wasOpenRef.current = dialogOpen;
+  }, [dialogOpen, resetUpdateState]);
+
+  // Read the latest handler through a ref so the effect can depend only on
+  // the command counter; the update check should run exactly once for each
+  // increment. Invariant: call sites must increment checkForUpdatesRequest
+  // only while also opening the dialog; an increment made while the dialog
+  // stays closed would fire the check on the next open instead.
+  const handleCheckForUpdatesRef = useRef(handleCheckForUpdates);
+  handleCheckForUpdatesRef.current = handleCheckForUpdates;
+
+  useEffect(() => {
+    if (
+      !dialogOpen ||
+      checkForUpdatesRequest === 0 ||
+      checkForUpdatesRequest === handledCheckForUpdatesRequestRef.current
+    ) {
+      return;
+    }
+    handledCheckForUpdatesRequestRef.current = checkForUpdatesRequest;
+    void handleCheckForUpdatesRef.current();
+  }, [checkForUpdatesRequest, dialogOpen]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setInternalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
+
   return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (open) resetUpdateState();
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button
-          className={buttonClassName}
-          variant="ghost"
-          size={buttonSize}
-          aria-label="About"
-        >
-          <Info className={iconClassName ?? "h-3.5 w-3.5 sm:mr-1"} />
-          {showLabels ? <span className="hidden sm:inline">About</span> : null}
-        </Button>
-      </DialogTrigger>
+    <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+      {renderTrigger ? (
+        <DialogTrigger asChild>
+          <Button
+            className={buttonClassName}
+            variant="ghost"
+            size={buttonSize}
+            aria-label="About"
+          >
+            <Info className={iconClassName ?? "h-3.5 w-3.5 sm:mr-1"} />
+            {showLabels ? (
+              <span className="hidden sm:inline">About</span>
+            ) : null}
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
