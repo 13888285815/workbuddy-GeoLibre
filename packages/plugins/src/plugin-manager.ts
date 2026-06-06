@@ -13,12 +13,29 @@ export class PluginManager {
     string,
     GeoLibreMapControlPosition
   >();
+  private handledUrlParametersByContext = new Map<string, Set<string>>();
+  private inFlightUrlContexts = new Map<string, number>();
+  private urlParameterNamesById = new Map<string, string[]>();
   private listeners = new Set<() => void>();
   private version = 0;
 
   register(plugin: GeoLibrePlugin): void {
     const previous = this.plugins.get(plugin.id);
+    if (previous && previous !== plugin) {
+      // Evict the plugin's dedup entries from every retained context so a
+      // re-registered (e.g. hot-reloaded) plugin can handle the current URL
+      // context again. This intentionally also lets it re-handle older
+      // retained contexts if one of those is ever re-dispatched: the new
+      // plugin instance has fresh state and never saw them.
+      for (const handled of this.handledUrlParametersByContext.values()) {
+        handled.delete(plugin.id);
+      }
+    }
     this.plugins.set(plugin.id, plugin);
+    this.urlParameterNamesById.set(
+      plugin.id,
+      normalizeUrlParameterNames(plugin.urlParameterNames),
+    );
     const defaultPosition = plugin.getMapControlPosition?.();
     if (defaultPosition) {
       this.defaultMapControlPositions.set(plugin.id, defaultPosition);
@@ -106,6 +123,80 @@ export class PluginManager {
     else this.activate(id, app);
   }
 
+  async handleUrlParameters(
+    params: URLSearchParams,
+    app: GeoLibreAppAPI,
+    contextKey?: string,
+  ): Promise<void> {
+    // An empty serialization means no parameters. params.size would be more
+    // direct but is unavailable in older webviews (pre-Safari 17 WKWebView).
+    const serialized = params.toString();
+    if (!serialized) return;
+    contextKey ??= serialized;
+
+    // Dedup state is kept per context so overlapping async calls with
+    // different context keys cannot clear each other's in-flight entries.
+    // Only the most recent contexts matter, so older ones are evicted to keep
+    // the map bounded for the lifetime of the page. In-flight contexts are
+    // never evicted, so a suspended dispatch cannot lose its dedup entries
+    // and re-run plugins for the same context; the map can temporarily exceed
+    // MAX_HANDLED_URL_CONTEXTS while that many dispatches overlap.
+    this.inFlightUrlContexts.set(
+      contextKey,
+      (this.inFlightUrlContexts.get(contextKey) ?? 0) + 1,
+    );
+
+    let handledPluginIds = this.handledUrlParametersByContext.get(contextKey);
+    if (!handledPluginIds) {
+      handledPluginIds = new Set();
+      this.handledUrlParametersByContext.set(contextKey, handledPluginIds);
+      for (const key of this.handledUrlParametersByContext.keys()) {
+        if (
+          this.handledUrlParametersByContext.size <= MAX_HANDLED_URL_CONTEXTS
+        ) {
+          break;
+        }
+        if (this.inFlightUrlContexts.has(key)) continue;
+        this.handledUrlParametersByContext.delete(key);
+      }
+    }
+
+    try {
+      for (const [id, plugin] of this.plugins) {
+        if (!this.active.has(id) || !plugin.handleUrlParameters) continue;
+
+        const parameterNames = this.urlParameterNamesById.get(id) ?? [];
+        if (
+          parameterNames.length === 0 ||
+          !parameterNames.some((name) => params.has(name))
+        ) {
+          continue;
+        }
+
+        if (handledPluginIds.has(id)) continue;
+        // Mark before awaiting so a concurrent dispatch for the same context
+        // cannot double-fire the handler.
+        handledPluginIds.add(id);
+
+        try {
+          await plugin.handleUrlParameters(app, new URLSearchParams(params));
+        } catch (error) {
+          // Unmark so a later dispatch for the same context retries the
+          // plugin instead of silently skipping it after a failure.
+          handledPluginIds.delete(id);
+          console.warn(
+            `Plugin '${id}' could not handle GeoLibre URL parameters.`,
+            error,
+          );
+        }
+      }
+    } finally {
+      const inFlight = this.inFlightUrlContexts.get(contextKey) ?? 0;
+      if (inFlight <= 1) this.inFlightUrlContexts.delete(contextKey);
+      else this.inFlightUrlContexts.set(contextKey, inFlight - 1);
+    }
+  }
+
   setMapControlPosition(
     id: string,
     app: GeoLibreAppAPI,
@@ -179,4 +270,15 @@ export class PluginManager {
     this.version += 1;
     for (const listener of this.listeners) listener();
   }
+}
+
+// Retaining several recent contexts (rather than only the latest) keeps dedup
+// intact when fire-and-forget calls with different context keys overlap.
+const MAX_HANDLED_URL_CONTEXTS = 8;
+
+function normalizeUrlParameterNames(names: string[] | undefined): string[] {
+  if (!names) return [];
+  return Array.from(
+    new Set(names.map((name) => name.trim()).filter((name) => name.length > 0)),
+  );
 }

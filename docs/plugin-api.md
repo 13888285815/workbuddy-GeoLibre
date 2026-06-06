@@ -117,6 +117,54 @@ Map control plugins can optionally expose `getMapControlPosition()` and `setMapC
 
 Plugins with serializable runtime settings can expose `getProjectState()` and `applyProjectState()` so GeoLibre can save and restore those settings in the project file. A wrapper should use these hooks to adapt upstream control APIs such as `getState()` without requiring every upstream package to implement a GeoLibre-specific interface.
 
+Plugins can also declare URL query parameters and handle them when GeoLibre opens. URL parameter handlers run after the map is ready, external plugins are loaded, and project plugin state has been restored. GeoLibre calls handlers only for active plugins whose declared parameter names are present in the URL, and it suppresses repeated handling of the same URL context for the same plugin. Parameter names are case-sensitive, as URL query parameters are: declaring `exampleGeoJson` will not match `?ExampleGeoJson=…`.
+
+```typescript
+import type { GeoLibreAppAPI, GeoLibrePlugin } from "@geolibre/plugins";
+
+export const plugin: GeoLibrePlugin = {
+  id: "example-url-loader",
+  name: "Example URL Loader",
+  version: "0.1.0",
+  urlParameterNames: ["exampleGeoJson"],
+  activate() {
+    // Set up controls or plugin state here.
+  },
+  deactivate() {
+    // Clean up controls, listeners, and plugin state here.
+  },
+  async handleUrlParameters(app: GeoLibreAppAPI, params: URLSearchParams) {
+    for (const dataUrl of params.getAll("exampleGeoJson")) {
+      // URL parameter values are attacker-controlled: only fetch HTTPS URLs
+      // and verify the origin is one you trust before loading. Parsing the
+      // value rejects malformed URLs, and the protocol check blocks
+      // non-HTTPS schemes (file://, data:, http://); neither protects
+      // against SSRF to loopback or private-network addresses.
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(dataUrl);
+      } catch {
+        continue;
+      }
+      if (parsedUrl.protocol !== "https:") continue;
+      const response = await fetch(parsedUrl.href);
+      if (!response.ok) continue;
+      app.addGeoJsonLayer("Example URL layer", await response.json(), dataUrl);
+    }
+  },
+};
+```
+
+Validate URL parameter values before acting on them. Anyone can craft a link to GeoLibre, so handlers that fetch a parameter value should reject unexpected schemes (`file://`, `data:`, plain `http://`) and only contact origins they trust.
+
+For example:
+
+```text
+https://viewer.geolibre.app/?url=https://example.com/project.geolibre.json&exampleGeoJson=https://example.com/data.geojson
+```
+
+A URL parameter does not activate an inactive plugin by itself. For external plugins, include the plugin manifest URL and active plugin ID in the project `plugins` state, or have the user enable the plugin before relying on its URL handler.
+
 ## External plugins
 
 Use the [GeoLibre plugin template](https://github.com/opengeos/geolibre-plugin-template) as the recommended starting point for external plugin development. The template includes a MapLibre control wrapper, a `plugin.json` manifest, a GeoLibre plugin entry point, and a `package:geolibre` script that builds the zip layout GeoLibre Desktop expects.

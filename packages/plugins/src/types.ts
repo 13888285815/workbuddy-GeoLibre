@@ -75,8 +75,20 @@ export interface GeoLibrePlugin {
   name: string;
   version: string;
   activeByDefault?: boolean;
+  /** At least one name is required for handleUrlParameters to be called. */
+  urlParameterNames?: string[];
   activate: (app: GeoLibreAppAPI) => boolean | void;
   deactivate: (app: GeoLibreAppAPI) => void;
+  /**
+   * Called once per URL context after the map and plugins are ready.
+   * Requires urlParameterNames to be non-empty; otherwise this hook is never
+   * invoked. A handler that throws is not counted as handled, so a later
+   * dispatch for the same context retries it.
+   */
+  handleUrlParameters?: (
+    app: GeoLibreAppAPI,
+    params: URLSearchParams,
+  ) => void | Promise<void>;
   getMapControlPosition?: () => GeoLibreMapControlPosition;
   setMapControlPosition?: (
     app: GeoLibreAppAPI,
