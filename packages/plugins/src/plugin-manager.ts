@@ -163,7 +163,7 @@ export class PluginManager {
 
     try {
       for (const [id, plugin] of this.plugins) {
-        if (!this.active.has(id) || !plugin.handleUrlParameters) continue;
+        if (!plugin.handleUrlParameters) continue;
 
         const parameterNames = this.urlParameterNamesById.get(id) ?? [];
         if (
@@ -173,10 +173,38 @@ export class PluginManager {
           continue;
         }
 
+        // Skip before activating: a context already handled this plugin, so
+        // re-running activation side-effects (e.g. after a manual deactivate)
+        // would reactivate it without ever dispatching the handler again.
         if (handledPluginIds.has(id)) continue;
-        // Mark before awaiting so a concurrent dispatch for the same context
-        // cannot double-fire the handler.
+        // Reserve dedup before activating: activate() notifies listeners
+        // synchronously, and a re-entrant URL dispatch for the same context
+        // must not double-run this plugin. Rolled back on every path that
+        // ends without dispatching the handler.
         handledPluginIds.add(id);
+
+        // A deep link to a parameter a plugin owns implies the user wants that
+        // plugin: activate it if it is installed (registered) but inactive, so
+        // e.g. ?annotate-data=... brings up its plugin. Only already-registered
+        // (trusted) plugins are activated here; nothing is loaded from the URL.
+        // If activation is refused or throws, skip dispatch and isolate the
+        // failure to this plugin instead of aborting the whole loop.
+        if (!this.active.has(id)) {
+          try {
+            this.activate(id, app);
+          } catch (error) {
+            handledPluginIds.delete(id);
+            console.warn(
+              `Plugin '${id}' could not be activated from GeoLibre URL parameters.`,
+              error,
+            );
+            continue;
+          }
+          if (!this.active.has(id)) {
+            handledPluginIds.delete(id);
+            continue;
+          }
+        }
 
         try {
           await plugin.handleUrlParameters(app, new URLSearchParams(params));
