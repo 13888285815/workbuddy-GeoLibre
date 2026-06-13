@@ -681,6 +681,320 @@ def test_aggregate_geometry_group_field_raises_clean_error() -> None:
         )
 
 
+# --- Smooth ---
+
+
+def test_smooth_polygon_chaikin_exact_coordinates() -> None:
+    # Smooth is pure coordinate math (no GeoPandas), so it runs unconditionally
+    # and must match the client engine bit-for-bit on a known case.
+    square = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"name": "s"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [[0, 0], [0, 10], [10, 10], [10, 0], [0, 0]],
+                    ],
+                },
+            }
+        ],
+    }
+    geojson, messages = run_vector_tool("smooth", square, parameters={"iterations": 1})
+    ring = geojson["features"][0]["geometry"]["coordinates"][0]
+    # One Chaikin pass on the 4-vertex ring -> 8 cut points + the closing vertex.
+    assert len(ring) == 9
+    assert ring[0] == ring[-1]
+    # The first cut point is 1/4 along the first segment ([0,0] -> [0,10]).
+    assert ring[0] == [0, 2.5]
+    assert geojson["features"][0]["geometry"]["type"] == "Polygon"
+    assert geojson["features"][0]["properties"]["name"] == "s"
+    assert messages and "Smoothed 1 feature" in messages[0]
+
+
+def test_smooth_passes_points_through_unchanged() -> None:
+    pts = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "Point", "coordinates": [1, 2]},
+            }
+        ],
+    }
+    geojson, messages = run_vector_tool("smooth", pts, parameters={"iterations": 3})
+    assert geojson["features"][0]["geometry"] == {"type": "Point", "coordinates": [1, 2]}
+    # No line/polygon features were smoothed.
+    assert messages and "Smoothed 0 feature" in messages[0]
+
+
+def test_smooth_rejects_out_of_range_iterations() -> None:
+    line = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]},
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="between 1 and 10"):
+        run_vector_tool("smooth", line, parameters={"iterations": 99})
+
+
+def test_smooth_empty_ring_does_not_crash() -> None:
+    # A malformed polygon with an empty ring must not raise (IndexError -> 500);
+    # the ring stays empty. Mirrors the client guard.
+    malformed = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "Polygon", "coordinates": [[]]},
+            }
+        ],
+    }
+    geojson, _ = run_vector_tool("smooth", malformed, parameters={"iterations": 2})
+    assert geojson["features"][0]["geometry"]["coordinates"] == [[]]
+
+
+def test_smooth_iterations_round_half_up_matches_js() -> None:
+    # 3.5 rounds up to 4 (JS Math.round semantics), not down to 3 like Python's
+    # banker's round(), keeping the client and Python engines bit-identical.
+    square = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [0, 10], [10, 10], [10, 0], [0, 0]]],
+                },
+            }
+        ],
+    }
+    _, messages = run_vector_tool("smooth", square, parameters={"iterations": 3.5})
+    assert messages and "with 4 iteration(s)" in messages[0]
+
+
+def test_smooth_iterations_zero_is_rejected() -> None:
+    # An explicit 0 must hit the range check, not be silently coerced to 3.
+    line = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]},
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="between 1 and 10"):
+        run_vector_tool("smooth", line, parameters={"iterations": 0})
+
+
+def test_smooth_boolean_iterations_falls_back_to_default() -> None:
+    # A JSON boolean is not a number on the client (it uses the fallback 3), so
+    # the backend must not treat False as 0 (which would error). Keeps parity.
+    line = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]},
+            }
+        ],
+    }
+    _, messages = run_vector_tool("smooth", line, parameters={"iterations": False})
+    assert messages and "with 3 iteration(s)" in messages[0]
+
+
+def test_smooth_missing_coordinates_does_not_crash() -> None:
+    # A malformed geometry with no coordinates key must not raise (TypeError ->
+    # 500); the coordinate list is treated as empty.
+    malformed = {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature", "properties": {}, "geometry": {"type": "LineString"}}
+        ],
+    }
+    geojson, _ = run_vector_tool("smooth", malformed, parameters={"iterations": 2})
+    assert geojson["features"][0]["geometry"]["coordinates"] == []
+
+
+def test_smooth_degenerate_ring_collapses_to_empty() -> None:
+    # A 2-vertex (degenerate) ring can't form a valid polygon; it collapses to an
+    # empty ring rather than being re-closed into invalid GeoJSON.
+    degenerate = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [1, 1], [0, 0]]],
+                },
+            }
+        ],
+    }
+    geojson, _ = run_vector_tool("smooth", degenerate, parameters={"iterations": 3})
+    assert geojson["features"][0]["geometry"]["coordinates"] == [[]]
+
+
+def test_smooth_null_feature_raises_value_error() -> None:
+    # A null/non-object feature is bad input: it must raise ValueError (-> 400),
+    # not AttributeError (-> 500).
+    bad = {
+        "type": "FeatureCollection",
+        "features": [
+            None,
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]},
+            },
+        ],
+    }
+    with pytest.raises(ValueError, match="GeoJSON Feature object"):
+        run_vector_tool("smooth", bad, parameters={"iterations": 1})
+
+
+def test_smooth_preserves_feature_id() -> None:
+    line = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": "abc",
+                "properties": {},
+                "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]},
+            }
+        ],
+    }
+    geojson, _ = run_vector_tool("smooth", line, parameters={"iterations": 1})
+    assert geojson["features"][0]["id"] == "abc"
+
+
+def test_smooth_preserves_z_coordinates() -> None:
+    line3d = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[0, 0, 100], [0, 10, 200]],
+                },
+            }
+        ],
+    }
+    geojson, _ = run_vector_tool("smooth", line3d, parameters={"iterations": 1})
+    coords = geojson["features"][0]["geometry"]["coordinates"]
+    # Z is interpolated, not dropped: the 1/4 cut point is 100*0.75 + 200*0.25 = 125.
+    assert all(len(c) == 3 for c in coords)
+    assert coords[1] == [0, 2.5, 125]
+
+
+# --- Voronoi / Delaunay ---
+
+
+def _points(*coords: tuple[float, float]) -> dict:
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "Point", "coordinates": [x, y]},
+            }
+            for x, y in coords
+        ],
+    }
+
+
+@requires_geopandas
+def test_voronoi_produces_polygon_cells() -> None:
+    geojson, messages = run_vector_tool(
+        "voronoi",
+        _points((0, 0), (10, 0), (0, 10), (10, 10), (5, 5)),
+        parameters={"type": "voronoi"},
+    )
+    assert len(geojson["features"]) > 0
+    assert all(
+        f["geometry"]["type"] in ("Polygon", "MultiPolygon")
+        for f in geojson["features"]
+    )
+    assert messages and "Voronoi" in messages[0]
+
+
+@requires_geopandas
+def test_delaunay_produces_triangles() -> None:
+    geojson, messages = run_vector_tool(
+        "voronoi",
+        _points((0, 0), (10, 0), (0, 10), (10, 10), (5, 5)),
+        parameters={"type": "delaunay"},
+    )
+    assert len(geojson["features"]) > 0
+    assert all(f["geometry"]["type"] == "Polygon" for f in geojson["features"])
+    assert messages and "Delaunay" in messages[0]
+
+
+@requires_geopandas
+def test_voronoi_requires_three_points() -> None:
+    with pytest.raises(ValueError, match="at least 3 points"):
+        run_vector_tool("voronoi", _points((0, 0), (1, 1)), parameters={})
+
+
+@requires_geopandas
+def test_voronoi_unknown_type_raises() -> None:
+    with pytest.raises(ValueError, match="Unknown diagram type"):
+        run_vector_tool(
+            "voronoi",
+            _points((0, 0), (10, 0), (0, 10)),
+            parameters={"type": "bogus"},
+        )
+
+
+@requires_geopandas
+def test_voronoi_collinear_points_raise() -> None:
+    # Axis-aligned collinear points (zero-area bounds) are rejected before the
+    # diagram-type branch, for both Voronoi and Delaunay.
+    with pytest.raises(ValueError, match="collinear or coincident"):
+        run_vector_tool(
+            "voronoi",
+            _points((0, 0), (0, 5), (0, 10)),
+            parameters={"type": "voronoi"},
+        )
+    with pytest.raises(ValueError, match="collinear or coincident"):
+        run_vector_tool(
+            "voronoi",
+            _points((0, 0), (0, 5), (0, 10)),
+            parameters={"type": "delaunay"},
+        )
+
+
+@requires_geopandas
+def test_voronoi_diagonal_collinear_points_raise() -> None:
+    # Diagonally collinear points have a non-zero-area bbox, so they slip past the
+    # bbox guard but produce no triangle/cell with area; the empty-result guard
+    # reports them rather than returning nothing.
+    with pytest.raises(ValueError, match="collinear"):
+        run_vector_tool(
+            "voronoi",
+            _points((0, 0), (1, 1), (2, 2)),
+            parameters={"type": "delaunay"},
+        )
+
+
 @requires_geopandas
 def test_json_wrapper_round_trips() -> None:
     payload = json.dumps(
