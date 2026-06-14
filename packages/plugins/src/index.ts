@@ -150,6 +150,7 @@ export { restoreDeckViz } from "./plugins/deckgl-viz/overlay";
 export { ensureMercatorProjection } from "./plugins/map-projection-utils";
 export {
   DECK_VIZ_CATEGORY_LABELS,
+  DEFAULT_DECK_VIZ_SCENEGRAPH,
   DEFAULT_DECK_VIZ_STYLE,
   getDeckVizLayerDef,
   listDeckVizLayerDefs,
@@ -160,6 +161,7 @@ export {
   type DeckVizInputKind,
   type DeckVizLayerDef,
   type DeckVizRole,
+  type DeckVizScenegraphConfig,
   type DeckVizStyle,
   type DeckVizStyleControl,
 } from "./plugins/deckgl-viz/registry";
