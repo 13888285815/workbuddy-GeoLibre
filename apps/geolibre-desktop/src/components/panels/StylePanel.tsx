@@ -15,6 +15,7 @@ import {
 } from "@geolibre/core";
 import {
   Button,
+  ColorField,
   Input,
   Label,
   ScrollArea,
@@ -1540,16 +1541,18 @@ export function StylePanel({
             {draftVectorStyleStops.map((stop, index) => (
               <div
                 key={index}
-                className="grid grid-cols-[2.25rem_1fr_2rem] items-center gap-2"
+                className="grid grid-cols-[auto_1fr_2rem] items-center gap-2"
               >
-                <Input
-                  type="color"
+                <ColorField
+                  fill={false}
                   aria-label={`Class ${index + 1} color`}
-                  className="h-9 p-1"
+                  eyedropperLabel={`Pick class ${index + 1} color from the screen`}
+                  className="h-9 w-9 p-1"
+                  buttonClassName="h-9 w-9"
                   value={stop.color}
-                  onChange={(event) =>
+                  onChange={(color) =>
                     updateDraftVectorStyleStop(index, {
-                      color: event.target.value,
+                      color,
                     })
                   }
                 />
@@ -1690,25 +1693,19 @@ export function StylePanel({
       {draftVectorStyleMode === "single" ? (
         <div className="space-y-2">
           <Label htmlFor="fillColor">Fill color</Label>
-          <Input
+          <ColorField
             id="fillColor"
-            type="color"
             value={style.fillColor}
-            onChange={(e) =>
-              setLayerStyle(layer.id, { fillColor: e.target.value })
-            }
+            onChange={(fillColor) => setLayerStyle(layer.id, { fillColor })}
           />
         </div>
       ) : null}
       <div className="space-y-2">
         <Label htmlFor="strokeColor">Outline color</Label>
-        <Input
+        <ColorField
           id="strokeColor"
-          type="color"
           value={style.strokeColor}
-          onChange={(e) =>
-            setLayerStyle(layer.id, { strokeColor: e.target.value })
-          }
+          onChange={(strokeColor) => setLayerStyle(layer.id, { strokeColor })}
         />
       </div>
       <NumericStyleInput
@@ -1768,12 +1765,11 @@ export function StylePanel({
           <Separator />
           <div className="space-y-2">
             <Label htmlFor="textColor">Text color</Label>
-            <Input
+            <ColorField
               id="textColor"
-              type="color"
               value={styleValue(style, "textColor")}
-              onChange={(e) =>
-                setLayerStyle(layer.id, { textColor: e.target.value })
+              onChange={(textColor) =>
+                setLayerStyle(layer.id, { textColor })
               }
             />
           </div>
@@ -1788,12 +1784,11 @@ export function StylePanel({
           />
           <div className="space-y-2">
             <Label htmlFor="textHaloColor">Text halo color</Label>
-            <Input
+            <ColorField
               id="textHaloColor"
-              type="color"
               value={styleValue(style, "textHaloColor")}
-              onChange={(e) =>
-                setLayerStyle(layer.id, { textHaloColor: e.target.value })
+              onChange={(textHaloColor) =>
+                setLayerStyle(layer.id, { textHaloColor })
               }
             />
           </div>
@@ -1819,11 +1814,10 @@ export function StylePanel({
       {draftVectorStyleMode === "single" ? (
         <div className="space-y-2">
           <Label htmlFor="extrusionColor">Extrusion color</Label>
-          <Input
+          <ColorField
             id="extrusionColor"
-            type="color"
             value={draftExtrusionColor}
-            onChange={(event) => setDraftExtrusionColor(event.target.value)}
+            onChange={(color) => setDraftExtrusionColor(color)}
           />
         </div>
       ) : null}
