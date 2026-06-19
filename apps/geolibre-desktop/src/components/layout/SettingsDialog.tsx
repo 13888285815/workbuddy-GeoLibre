@@ -72,9 +72,11 @@ import {
   DATA_SOURCE_CATALOG,
   DATA_SOURCE_SECTION_LABEL_KEYS,
   DATA_SOURCE_SECTION_ORDER,
+  INTERFACE_PROFILES,
   MENU_ITEM_CATALOG,
   MENU_ITEM_GROUPS,
   TOP_LEVEL_MENUS,
+  activeInterfaceProfile,
   isMenuItemVisible,
   presetHiddenSets,
   showsAdvancedNotices,
@@ -544,7 +546,9 @@ export function SettingsDialog({
     updateUiProfile({ enabled: true, level, ...sets });
   };
 
-  // Toggling a single item makes the selection "custom" (level = null).
+  // Toggling a single item switches the profile to "custom" (level = null) and
+  // enables filtering so the edit takes effect even when starting from the
+  // legacy "show everything" state.
   const toggleDataSourceHidden = (id: string, visible: boolean) => {
     setDraftDesktopSettings((current) => {
       const hidden = new Set(current.uiProfile.hiddenDataSources);
@@ -554,6 +558,7 @@ export function SettingsDialog({
         ...current,
         uiProfile: {
           ...current.uiProfile,
+          enabled: true,
           level: null,
           hiddenDataSources: [...hidden],
         },
@@ -571,6 +576,7 @@ export function SettingsDialog({
         ...current,
         uiProfile: {
           ...current.uiProfile,
+          enabled: true,
           level: null,
           hiddenPlugins: [...hidden],
         },
@@ -586,7 +592,12 @@ export function SettingsDialog({
       else hidden.add(id);
       return {
         ...current,
-        uiProfile: { ...current.uiProfile, level: null, hiddenMenus: [...hidden] },
+        uiProfile: {
+          ...current.uiProfile,
+          enabled: true,
+          level: null,
+          hiddenMenus: [...hidden],
+        },
       };
     });
     setError(null);
@@ -601,6 +612,7 @@ export function SettingsDialog({
         ...current,
         uiProfile: {
           ...current.uiProfile,
+          enabled: true,
           level: null,
           hiddenMenuItems: [...hidden],
         },
@@ -809,42 +821,34 @@ export function SettingsDialog({
               {t("settings.section.interface")}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-56">
-              <DropdownMenuCheckboxItem
-                checked={desktopSettings.uiProfile.enabled}
-                disabled={desktopSettings.uiProfile.locked}
-                onCheckedChange={(checked: boolean) =>
-                  updateSavedUiProfile({ enabled: checked === true })
-                }
-                onSelect={(event: Event) => event.preventDefault()}
-              >
-                {t("settings.interface.enable")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
               <DropdownMenuLabel className="px-2 py-1 text-xs font-normal text-muted-foreground">
                 {t("settings.interface.presets")}
               </DropdownMenuLabel>
               <DropdownMenuRadioGroup
-                value={desktopSettings.uiProfile.level ?? ""}
+                value={activeInterfaceProfile(desktopSettings.uiProfile)}
                 onValueChange={(value: string) => {
-                  // Guard the cast: the group's value is `level ?? ""`, and no
-                  // radio item carries an empty value, but make the invariant
-                  // explicit so a stray value can't reach presetHiddenSets.
+                  // Only the three presets are selectable; "custom" is a derived
+                  // status. EXPERIENCE_LEVELS excludes "custom", so this guard
+                  // keeps it (and any stray value) from reaching presetHiddenSets.
+                  // Keep EXPERIENCE_LEVELS in sync with the selectable entries of
+                  // INTERFACE_PROFILES.
                   if ((EXPERIENCE_LEVELS as readonly string[]).includes(value)) {
                     applySavedExperiencePreset(value as ExperienceLevel);
                   }
                 }}
               >
-                {EXPERIENCE_LEVELS.map((level) => (
+                {INTERFACE_PROFILES.map((option) => (
                   <DropdownMenuRadioItem
-                    key={level}
-                    value={level}
+                    key={option}
+                    value={option}
+                    // "custom" lights up automatically when the user hand-edits
+                    // an item, but is never directly selectable.
                     disabled={
-                      desktopSettings.uiProfile.locked ||
-                      !desktopSettings.uiProfile.enabled
+                      desktopSettings.uiProfile.locked || option === "custom"
                     }
                     onSelect={(event: Event) => event.preventDefault()}
                   >
-                    {t(`settings.interface.level.${level}`)}
+                    {t(`settings.interface.level.${option}`)}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
@@ -1187,43 +1191,45 @@ export function SettingsDialog({
                       {t("settings.interface.lockedNote")}
                     </div>
                   ) : null}
-                  <label className="flex items-center gap-3 rounded-md border p-3 text-sm">
-                    <input
-                      className="h-4 w-4"
-                      type="checkbox"
-                      checked={draftDesktopSettings.uiProfile.enabled}
-                      disabled={draftDesktopSettings.uiProfile.locked}
-                      onChange={(event) =>
-                        updateUiProfile({ enabled: event.target.checked })
-                      }
-                    />
-                    <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-                    <span>{t("settings.interface.enable")}</span>
-                  </label>
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {t("settings.interface.presets")}
                     </h4>
                     <div className="flex flex-wrap gap-2">
-                      {EXPERIENCE_LEVELS.map((level) => (
-                        <Button
-                          key={level}
-                          type="button"
-                          size="sm"
-                          variant={
-                            draftDesktopSettings.uiProfile.level === level
-                              ? "secondary"
-                              : "outline"
-                          }
-                          disabled={
-                            draftDesktopSettings.uiProfile.locked ||
-                            !draftDesktopSettings.uiProfile.enabled
-                          }
-                          onClick={() => applyExperiencePreset(level)}
-                        >
-                          {t(`settings.interface.level.${level}`)}
-                        </Button>
-                      ))}
+                      {INTERFACE_PROFILES.map((option) => {
+                        const active =
+                          activeInterfaceProfile(
+                            draftDesktopSettings.uiProfile,
+                          ) === option;
+                        return (
+                          <Button
+                            key={option}
+                            type="button"
+                            size="sm"
+                            variant={active ? "secondary" : "outline"}
+                            // "custom" activates automatically when an item is
+                            // toggled below, so it is a status rather than a
+                            // button to click: always disabled (matching the
+                            // dropdown), highlighted only when it is the active
+                            // state. The three presets apply at once.
+                            disabled={
+                              draftDesktopSettings.uiProfile.locked ||
+                              option === "custom"
+                            }
+                            // Mark the active state for assistive tech: the
+                            // "custom" button is inert (disabled), so without this
+                            // a screen reader would never announce it as current.
+                            aria-current={active ? true : undefined}
+                            onClick={
+                              option === "custom"
+                                ? undefined
+                                : () => applyExperiencePreset(option)
+                            }
+                          >
+                            {t(`settings.interface.level.${option}`)}
+                          </Button>
+                        );
+                      })}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {t("settings.interface.presetsHint")}
@@ -1255,8 +1261,7 @@ export function SettingsDialog({
                                   )
                                 }
                                 disabled={
-                                  draftDesktopSettings.uiProfile.locked ||
-                                  !draftDesktopSettings.uiProfile.enabled
+                                  draftDesktopSettings.uiProfile.locked
                                 }
                                 onChange={(event) =>
                                   toggleDataSourceHidden(
@@ -1292,8 +1297,7 @@ export function SettingsDialog({
                                 )
                               }
                               disabled={
-                                draftDesktopSettings.uiProfile.locked ||
-                                !draftDesktopSettings.uiProfile.enabled
+                                draftDesktopSettings.uiProfile.locked
                               }
                               onChange={(event) =>
                                 togglePluginHidden(plugin.id, event.target.checked)
@@ -1324,8 +1328,7 @@ export function SettingsDialog({
                               )
                             }
                             disabled={
-                              draftDesktopSettings.uiProfile.locked ||
-                              !draftDesktopSettings.uiProfile.enabled
+                              draftDesktopSettings.uiProfile.locked
                             }
                             onChange={(event) =>
                               toggleMenuHidden(menu.id, event.target.checked)
@@ -1358,8 +1361,7 @@ export function SettingsDialog({
                                 )
                               }
                               disabled={
-                                draftDesktopSettings.uiProfile.locked ||
-                                !draftDesktopSettings.uiProfile.enabled
+                                draftDesktopSettings.uiProfile.locked
                               }
                               onChange={(event) =>
                                 toggleMenuItemHidden(entry.id, event.target.checked)

@@ -390,6 +390,38 @@ export function isMenuItemVisible(
 }
 
 /**
+ * The four interface-profile states surfaced in the UI. The three
+ * experience levels are developer-curated presets; `"custom"` is entered
+ * automatically when the user toggles an individual item away from a preset.
+ */
+export type InterfaceProfile = ExperienceLevel | "custom";
+
+/** Interface-profile options in display order (the three presets, then custom). */
+export const INTERFACE_PROFILES: readonly InterfaceProfile[] = [
+  "beginner",
+  "intermediate",
+  "advanced",
+  "custom",
+];
+
+/**
+ * Derive the active interface profile from the stored settings.
+ * A disabled profile (the legacy/default "show everything" state) reads as
+ * Advanced, since the Advanced preset also reveals every item. An enabled
+ * profile reports its preset level, or `"custom"` once the user has hand-edited
+ * the hidden lists.
+ *
+ * @param profile - The stored UI-profile settings.
+ * @returns The active interface profile to highlight in the UI.
+ */
+export function activeInterfaceProfile(
+  profile: UiProfileSettings,
+): InterfaceProfile {
+  if (!profile.enabled) return "advanced";
+  return profile.level ?? "custom";
+}
+
+/**
  * Whether advanced, developer-facing notices (the layer-panel "Advanced
  * formats" footer, the Layout tab's URL-params note) should be shown. Hidden for
  * the curated Beginner/Intermediate presets; shown when the profile is off, on
