@@ -7,6 +7,7 @@ import {
   fetchRemoteWhiteboxCatalogSnapshot,
   fetchWhiteboxStatus,
   fetchWhiteboxTools,
+  listGeolibreWasmTools,
   runWhiteboxTool,
   runWhiteboxToolWasm,
   type WhiteboxJob,
@@ -127,6 +128,35 @@ function datasetParameterKind(dataKind: string, suffix: "in" | "out"): string {
 
 function isOutputParameter(param: WhiteboxToolParameter): boolean {
   return parameterKind(param).endsWith("_out");
+}
+
+/**
+ * Best-effort extension for a `file_out` blob, sniffed from its magic bytes.
+ * Covers the formats GeoLibre `file_out` tools emit today (GeoParquet, PNG,
+ * PMTiles); a genuinely opaque output falls back to `.bin`. Extend the sniff
+ * here if a future tool writes a recognizable text format.
+ */
+function fileOutputExtension(bytes: Uint8Array): string {
+  const matches = (sig: number[]) => sig.every((b, i) => bytes[i] === b);
+  if (matches([0x50, 0x41, 0x52, 0x31])) return "parquet"; // "PAR1"
+  if (matches([0x89, 0x50, 0x4e, 0x47])) return "png";
+  // "PMTiles"
+  if (matches([0x50, 0x4d, 0x54, 0x69, 0x6c, 0x65, 0x73])) return "pmtiles";
+  return "bin";
+}
+
+/** Save bytes to the user's downloads via a transient object URL. */
+function downloadBytes(bytes: Uint8Array, filename: string): void {
+  // Cast required: TS types Uint8Array as Uint8Array<ArrayBufferLike>, which is
+  // not directly assignable to BlobPart under this lib (mirrors DesktopShell).
+  const url = URL.createObjectURL(new Blob([bytes as BlobPart]));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function isDataInputParameter(param: WhiteboxToolParameter): boolean {
@@ -361,6 +391,9 @@ export function ProcessingDialog({
   const [values, setValues] = useState<ParameterValues>({});
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
+  // Tool provenance filter: "All" | "geolibre" | "whitebox". Only meaningful in
+  // WASM mode, where GeoLibre-authored tools are mixed into the catalog.
+  const [source, setSource] = useState("All");
   const [loadingTools, setLoadingTools] = useState(false);
   const [runtimeMessage, setRuntimeMessage] = useState("");
   const [runtimeAvailable, setRuntimeAvailable] = useState<boolean | null>(null);
@@ -390,13 +423,53 @@ export function ProcessingDialog({
     [selectedToolId, tools],
   );
 
-  const categories = useMemo(() => {
-    const unique = Array.from(
-      new Set(tools.map((tool) => tool.category || "General")),
-    );
-    unique.sort((a, b) => a.localeCompare(b));
-    return ["All", ...unique];
+  // Whether any GeoLibre-authored tools are present (WASM mode), gating the
+  // source filter — pointless when every tool is from Whitebox.
+  const hasGeolibreTools = useMemo(
+    () => tools.some((tool) => tool.source === "geolibre"),
+    [tools],
+  );
+
+  // Ignore the source filter when no GeoLibre tools are present (e.g. sidecar
+  // mode), so a stale "geolibre" selection can't empty the whole list.
+  const matchesSource = useCallback(
+    (tool: WhiteboxTool) => {
+      if (source === "All" || !hasGeolibreTools) return true;
+      return (tool.source === "geolibre" ? "geolibre" : "whitebox") === source;
+    },
+    [source, hasGeolibreTools],
+  );
+
+  // Total tool count per source, for the source-filter labels.
+  const sourceCounts = useMemo(() => {
+    const geolibre = tools.filter(
+      (tool) => tool.source === "geolibre",
+    ).length;
+    return { all: tools.length, geolibre, whitebox: tools.length - geolibre };
   }, [tools]);
+
+  // Category options labelled with the number of tools in each (within the
+  // active source filter), e.g. "Conversion (37)".
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    let total = 0;
+    for (const tool of tools) {
+      if (!matchesSource(tool)) continue;
+      total += 1;
+      const name = tool.category || "General";
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    const sorted = [...counts.entries()].sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
+    return [
+      { value: "All", label: `All (${total})` },
+      ...sorted.map(([name, count]) => ({
+        value: name,
+        label: `${name} (${count})`,
+      })),
+    ];
+  }, [tools, matchesSource]);
 
   const filteredTools = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -404,6 +477,7 @@ export function ProcessingDialog({
       if (category !== "All" && (tool.category || "General") !== category) {
         return false;
       }
+      if (!matchesSource(tool)) return false;
       if (!normalizedQuery) return true;
       return [
         tool.id,
@@ -415,11 +489,14 @@ export function ProcessingDialog({
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [category, query, tools]);
+  }, [category, matchesSource, query, tools]);
 
   const loadWhitebox = useCallback(async () => {
     setLoadingTools(true);
     setError(null);
+    // Reset the source filter so a stale "geolibre" selection from a previous
+    // mode doesn't silently hide tools after a reload / mode switch.
+    setSource("All");
     // Drop the in-memory snapshot so a fresh load reflects upstream catalog
     // changes; calls within this load still dedup once it is repopulated.
     clearRemoteWhiteboxCatalogSnapshotCache();
@@ -460,6 +537,30 @@ export function ProcessingDialog({
         t("processing.whitebox.runningLocally"),
         false,
       );
+      // The GeoLibre-authored tools (write_geoparquet, delineate_depressions, …)
+      // aren't in the Whitebox catalog snapshot, so append them from the WASM
+      // binary's own manifests. WASM-only: they have no Python sidecar
+      // equivalent, hence only in the runLocal branch.
+      try {
+        const geolibreTools = await listGeolibreWasmTools();
+        if (geolibreTools.length > 0) {
+          setTools((current) => {
+            // On an id collision, prefer the GeoLibre manifest (it carries the
+            // richer param schemas) over a catalog stub.
+            const geolibreIds = new Set(geolibreTools.map((tool) => tool.id));
+            return [
+              ...current.filter((tool) => !geolibreIds.has(tool.id)),
+              ...geolibreTools,
+            ];
+          });
+          // Select the first GeoLibre tool if the snapshot was empty (otherwise
+          // applyRemoteCatalogSnapshot already picked a selection).
+          setSelectedToolId((current) => current || geolibreTools[0].id);
+        }
+      } catch (err) {
+        // Non-fatal: the catalog tools still load if the WASM enumeration fails.
+        console.warn("[GeoLibre] Could not enumerate WASM GeoLibre tools:", err);
+      }
       setLoadingTools(false);
       return;
     }
@@ -623,11 +724,17 @@ export function ProcessingDialog({
         if (layer) mapControllerRef.current?.fitLayer(layer);
       }
 
-      // Raster outputs come back from the WASM runner as inline COG bytes.
-      // Render each as a new raster layer through the shell-provided handler.
-      if (onAddRaster) {
-        for (const [name, value] of Object.entries(nextJob.outputs)) {
-          if (!(value instanceof Uint8Array)) continue;
+      // Binary outputs come back from the WASM runner inline. Raster (COG) bytes
+      // become a new raster layer; a `file_out` (e.g. write_geoparquet .parquet,
+      // a rendered .png, a .pmtiles) is not a GeoTIFF, so download it instead of
+      // handing it to the raster loader.
+      for (const [name, value] of Object.entries(nextJob.outputs)) {
+        if (!(value instanceof Uint8Array)) continue;
+        const param = jobTool?.params?.find((item) => item.name === name);
+        if (param && parameterKind(param) === "file_out") {
+          const label = `${jobToolLabel} ${humanize(name)}`.replace(/\s+/g, "_");
+          downloadBytes(value, `${label}.${fileOutputExtension(value)}`);
+        } else if (onAddRaster) {
           await onAddRaster(value, `${jobToolLabel} ${humanize(name)}`);
         }
       }
@@ -839,11 +946,36 @@ export function ProcessingDialog({
 
             <Select value={category} onChange={(e) => setCategory(e.target.value)}>
               {categories.map((item) => (
-                <option key={item} value={item}>
-                  {item}
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </Select>
+
+            {hasGeolibreTools && (
+              <Select
+                value={source}
+                // Reset the category too: a category with no tools in the newly
+                // chosen source would otherwise leave the list empty.
+                onChange={(e) => {
+                  setSource(e.target.value);
+                  setCategory("All");
+                }}
+                aria-label={t("processing.whitebox.filterBySource")}
+              >
+                <option value="All">
+                  {t("processing.whitebox.allSources")} ({sourceCounts.all})
+                </option>
+                <option value="geolibre">
+                  {t("processing.whitebox.geolibreTools")} (
+                  {sourceCounts.geolibre})
+                </option>
+                <option value="whitebox">
+                  {t("processing.whitebox.whiteboxTools")} (
+                  {sourceCounts.whitebox})
+                </option>
+              </Select>
+            )}
 
             <ScrollArea className="min-h-0 flex-1 rounded-md border">
               <div className="divide-y">
