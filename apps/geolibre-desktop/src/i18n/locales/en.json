@@ -929,13 +929,26 @@
     "setView": {
       "title": "Set View",
       "description": "Move the map to an exact camera. Pitch and bearing default to 0 if left blank.",
+      "sectionCoordinates": "Coordinates",
+      "sectionZoom": "Camera Zoom",
+      "sectionOrientation": "Camera Orientation",
+      "format": "Coordinate format",
+      "formatDd": "Decimal degrees (DD)",
+      "formatDms": "Degrees, minutes, seconds (DMS)",
+      "formatDdShort": "DD",
+      "formatDmsShort": "DMS",
       "longitude": "Longitude",
       "latitude": "Latitude",
+      "degrees": "Degrees",
+      "minutes": "Minutes",
+      "seconds": "Seconds",
+      "hemisphere": "Hemisphere",
       "zoom": "Zoom",
       "pitch": "Pitch",
       "bearing": "Bearing",
       "go": "Go",
-      "invalid": "Enter a valid longitude (−180 to 180), latitude (−90 to 90), and zoom."
+      "invalid": "Enter a valid longitude (−180 to 180), latitude (−90 to 90), and zoom.",
+      "invalidDms": "Enter valid degrees, minutes (0 to 59), seconds (0 to 59), and zoom."
     },
     "commandGroup": {
       "project": "Project",
