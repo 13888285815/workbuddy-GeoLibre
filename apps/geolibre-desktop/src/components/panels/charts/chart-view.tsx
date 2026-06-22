@@ -193,14 +193,23 @@ function yAxisTitle(text: string) {
 }
 
 function EmptyChart({ message }: { message: string }) {
+  // flex-1 only acts when the element grows (in the Dashboard's flexed card),
+  // where it centers the message like the panel's own no-data state; in the
+  // Charts dialog the <p> is simply a flex box around a single text node.
   return (
-    <p className="py-10 text-center text-sm text-muted-foreground">{message}</p>
+    <p className="flex flex-1 items-center justify-center py-10 text-center text-sm text-muted-foreground">
+      {message}
+    </p>
   );
 }
 
 function Caption({ children }: { children: ReactNode }) {
+  // shrink-0 keeps the caption legible when the Dashboard flexes the chart SVG
+  // to fill a short panel; it is a no-op in the non-flex Charts dialog.
   return (
-    <p className="mt-1 text-center text-xs text-muted-foreground">{children}</p>
+    <p className="mt-1 shrink-0 text-center text-xs text-muted-foreground">
+      {children}
+    </p>
   );
 }
 

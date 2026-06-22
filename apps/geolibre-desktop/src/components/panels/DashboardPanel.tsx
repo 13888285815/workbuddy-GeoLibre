@@ -37,6 +37,10 @@ const PANEL_RESIZE_END_EVENT = "geolibre:panel-resize-end";
 const MIN_DASHBOARD_HEIGHT = 160;
 const MAX_DASHBOARD_HEIGHT = 720;
 const DEFAULT_DASHBOARD_HEIGHT = 360;
+// Per-row floor once widgets wrap onto multiple rows; below it the panel
+// scrolls instead of crushing the charts. A single row has no floor, so it
+// fills and resizes with the panel height (issue #728).
+const MIN_DASHBOARD_ROW_HEIGHT = 200;
 
 /** Turn a stored widget into the render-side {@link ChartSpec}. */
 function widgetToSpec(widget: DashboardWidget): ChartSpec {
@@ -167,6 +171,17 @@ export function DashboardPanel() {
     }
   };
 
+  // When widgets wrap onto multiple rows, floor the grid height (rows plus the
+  // gap-3 gaps between them) so it scrolls rather than crushing the charts; a
+  // single row stays unbounded and fills the panel (issue #728). calc() lets
+  // the browser resolve 0.75rem so the gap tracks the root font size.
+  const rowCount = Math.max(1, Math.ceil(widgets.length / Math.max(1, columns)));
+  const gridMinHeight =
+    rowCount > 1
+      ? // 0.75rem is gap-3; keep in sync if the grid's gap class changes.
+        `calc(${rowCount} * ${MIN_DASHBOARD_ROW_HEIGHT}px + ${rowCount - 1} * 0.75rem)`
+      : undefined;
+
   return (
     <section
       ref={sectionRef}
@@ -286,9 +301,12 @@ export function DashboardPanel() {
             </div>
           ) : (
             <div
-              className="grid gap-3"
+              className="grid h-full gap-3"
               style={{
                 gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                // Equal-height rows that shrink with the panel (issue #728).
+                gridAutoRows: "minmax(0, 1fr)",
+                minHeight: gridMinHeight,
               }}
             >
               {widgets.map((widget, index) => (
@@ -366,8 +384,8 @@ function WidgetCard({
   const title = widget.title?.trim() || defaultWidgetTitle();
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border bg-background p-3">
-      <div className="flex items-center gap-2">
+    <div className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-md border bg-background p-3">
+      <div className="flex shrink-0 items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium" title={title}>
             {title}
@@ -422,13 +440,19 @@ function WidgetCard({
         </div>
       </div>
 
-      {data.hasData ? (
-        <ChartView result={result} color={widget.color} />
-      ) : (
-        <p className="py-8 text-center text-xs text-muted-foreground">
-          {t("dashboard.noData")}
-        </p>
-      )}
+      {/* [&>svg] targets ChartView's chart SVG, which is a direct DOM child
+          (React Fragments emit no nodes): it flexes to fill, min-h-0 lets it
+          shrink past its intrinsic aspect-ratio height, and preserveAspectRatio
+          letterboxes it. Update this if a chart ever wraps its SVG (issue #728). */}
+      <div className="flex min-h-0 flex-1 flex-col [&>svg]:min-h-0 [&>svg]:flex-1">
+        {data.hasData ? (
+          <ChartView result={result} color={widget.color} />
+        ) : (
+          <p className="flex flex-1 items-center justify-center py-4 text-center text-xs text-muted-foreground">
+            {t("dashboard.noData")}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
