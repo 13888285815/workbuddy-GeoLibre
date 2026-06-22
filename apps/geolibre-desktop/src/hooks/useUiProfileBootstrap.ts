@@ -1,6 +1,7 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { loadAdminProfile } from "../lib/admin-profile";
+import { shouldSuppressOnboarding } from "../lib/onboarding-suppression";
 import { presetHiddenSets, toggleablePluginIds } from "../lib/ui-profile";
 import { usePluginRegistry } from "./usePlugins";
 import { useDesktopSettingsStore } from "./useDesktopSettings";
@@ -44,6 +45,11 @@ export function useUiProfileBootstrap(): {
   const uiProfile = useDesktopSettingsStore(
     (state) => state.desktopSettings.uiProfile,
   );
+
+  // Suppress the first-launch onboarding wizard when the app is opened as an
+  // embed/deep link (see `shouldSuppressOnboarding`). Computed once: the
+  // location does not change during a session.
+  const suppressOnboarding = useMemo(() => shouldSuppressOnboarding(), []);
 
   // One-time admin-profile check. Built-in plugins are registered synchronously
   // at module load, so they are all present here; externally-loaded plugins are
@@ -115,7 +121,10 @@ export function useUiProfileBootstrap(): {
   // Derived from store state so completing/dismissing onboarding (which sets
   // `onboarded`) hides the wizard without extra local state.
   const showOnboarding =
-    adminChecked && !uiProfile.onboarded && !uiProfile.locked;
+    adminChecked &&
+    !uiProfile.onboarded &&
+    !uiProfile.locked &&
+    !suppressOnboarding;
 
   // Marks onboarding complete when the wizard is dismissed without a choice
   // (Escape/overlay). The wizard's own buttons set `onboarded` first, so this is
