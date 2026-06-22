@@ -604,7 +604,7 @@
     "shareButton": "Share",
     "sharing": "Sharing…",
     "errorFallback": "Could not share the project.",
-    "usernameRequired": "Set a username on your share.geolibre.app account before sharing. Open your account settings to choose one, then try again.",
+    "usernameRequired": "Your account has no username yet. Open your account settings to set one, then try sharing again.",
     "openAccountSettings": "Open account settings"
   },
   "language": {

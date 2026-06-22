@@ -115,14 +115,14 @@ export function ShareProjectDialog({
       setResult(uploaded);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      // A missing account username gets dedicated, actionable UI (a deep link to
-      // the website's settings) rather than the raw server string.
+      // `error` and `errorCode` are mutually exclusive and both were cleared
+      // before the upload, so each branch only sets the one it needs. A missing
+      // account username gets dedicated, actionable UI (a deep link to the
+      // website's settings) rather than the raw server string.
       if (err instanceof ShareUploadError && err.code === "username-required") {
         setErrorCode("username-required");
-        setError(null);
       } else {
         setError(err instanceof Error ? err.message : t("share.errorFallback"));
-        setErrorCode(null);
       }
     } finally {
       // Only the controller that is still current clears state, so an aborted
