@@ -488,6 +488,9 @@ function handleMouseDown(event: maplibregl.MapMouseEvent): void {
   ) {
     return;
   }
+  // Only a primary (left) press starts a shape; mousedown fires for every
+  // button, so a right-click would otherwise begin an accidental drag.
+  if (event.originalEvent.button !== 0) return;
   // Map drag-to-pan is already disabled by setActiveTool() for these tools, so
   // nothing else is needed to keep the gesture from panning the map.
   isDragging = true;
@@ -522,10 +525,14 @@ function handleMouseMove(event: maplibregl.MapMouseEvent): void {
     if (movedEnoughForFreehand(map, event.lngLat)) {
       freehandPath.push([event.lngLat.lng, event.lngLat.lat]);
     }
-    setPreview(map, {
-      type: "FeatureCollection",
-      features: [lineFeature(freehandPath)],
-    });
+    // A LineString needs at least two positions; the path holds only the seed
+    // point until the cursor first moves past the sampling threshold.
+    if (freehandPath.length >= 2) {
+      setPreview(map, {
+        type: "FeatureCollection",
+        features: [lineFeature(freehandPath)],
+      });
+    }
   }
 }
 

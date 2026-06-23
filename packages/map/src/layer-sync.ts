@@ -2647,6 +2647,9 @@ function ensureLayer(
   // setPaintProperty reset, which the update branch above uses; on first add it
   // must be stripped so e.g. `fill-pattern: null` (the "no pattern" reset) does
   // not blank the whole fill layer. Properties simply absent default correctly.
+  // Scoped to `paint` deliberately: `fill-pattern` is the only reset-via-null in
+  // this file. Extend to `layout` here if a layout property ever uses the same
+  // null-reset pattern.
   const addSpec =
     spec.paint &&
     Object.values(spec.paint).some((value) => value === null)
