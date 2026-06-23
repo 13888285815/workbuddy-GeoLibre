@@ -146,8 +146,11 @@ export function setNonTiledRasterHandler(
   nonTiledRasterHandler = handler;
 }
 
-/** Whether a raster load error is the upstream "striped, not tiled" failure
- * (maplibre-gl-raster rejects non-tiled GeoTIFFs with this message). */
+/** Whether a raster load error is the upstream "striped, not tiled" failure.
+ * maplibre-gl-raster (v0.6.3) rejects non-tiled GeoTIFFs with a message
+ * containing "not tiled"; this is the only signal it exposes, so the match is
+ * coupled to that wording. Re-verify it (and broaden if needed) when bumping the
+ * dependency -- a reworded message degrades to the plain error, not a crash. */
 function isNonTiledRasterError(error: Error | null | undefined): boolean {
   return error != null && /not tiled/i.test(error.message);
 }
@@ -533,24 +536,32 @@ function createRasterControl(
       return;
     }
     const objectUrl = info.source.objectUrl;
+    const handler = nonTiledRasterHandler;
     nonTiledInFlight.add(layerId);
-    void Promise.resolve(
-      nonTiledRasterHandler({
-        layerId,
-        name: info.name,
-        readBytes: async () => {
-          const response = await fetch(objectUrl);
-          return new Uint8Array(await response.arrayBuffer());
-        },
-        dismiss: () => {
-          // removeRaster emits 'rasterremove', which syncs the removal into the
-          // store and revokes any retained blob URL.
-          control.removeRaster(layerId);
-        },
-      }),
-      // Clear the guard once handling settles (converted, cancelled, or failed)
-      // so a later retry of the same file can prompt again.
-    ).finally(() => nonTiledInFlight.delete(layerId));
+    // Invoke inside the promise chain so even a synchronous throw from the
+    // handler still clears the in-flight guard via finally. Clears once handling
+    // settles (converted, cancelled, or failed) so a later retry can prompt
+    // again.
+    void Promise.resolve()
+      .then(() =>
+        handler({
+          layerId,
+          name: info.name,
+          readBytes: async () => {
+            const response = await fetch(objectUrl);
+            return new Uint8Array(await response.arrayBuffer());
+          },
+          dismiss: () => {
+            // removeRaster emits 'rasterremove', which syncs the removal into
+            // the store and revokes any retained blob URL.
+            control.removeRaster(layerId);
+          },
+        }),
+      )
+      .catch((error: unknown) =>
+        console.error("[GeoLibre] Non-tiled raster handler failed", error),
+      )
+      .finally(() => nonTiledInFlight.delete(layerId));
   });
   // syncRasterLayersToStore re-reads getState().collapsed when these fire.
   // Safe: expand()/collapse() delegate to toggle(), which flips

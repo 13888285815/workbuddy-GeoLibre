@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { before, describe, it } from "node:test";
+import { GeoTiffReader } from "geolibre-wasm";
 import {
   convertGeoTiffToCog,
   initCogWasm,
@@ -59,5 +60,17 @@ describe("convertGeoTiffToCog", () => {
     assert.equal(out.bands, 1);
     assert.equal(out.epsg, 4326);
     assert.equal(out.nodata, 0);
+
+    // Pixel values survive (the fixture is row-major `(i % 500) - 11`). This
+    // also exercises the single-band fast path (read_band_f32 -> write_f32).
+    const reader = new GeoTiffReader(cog);
+    try {
+      const band = reader.read_band_f32(0);
+      assert.equal(band.length, 32 * 32);
+      assert.equal(band[0], -11);
+      assert.equal(band[20], 9);
+    } finally {
+      reader.free();
+    }
   });
 });

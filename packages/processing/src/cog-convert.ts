@@ -115,6 +115,7 @@ export async function convertGeoTiffToCog(
   const reader = new GeoTiffReader(bytes);
   try {
     const info = JSON.parse(reader.info_json()) as GeoTiffInfo;
+    if (!info.ok) throw new Error("Not a readable GeoTIFF.");
     const { width, height, bands } = reader;
     const builder = new CogBuilder(width, height, bands);
     try {
@@ -132,6 +133,13 @@ export async function convertGeoTiffToCog(
       builder.set_compression("deflate");
       builder.set_overview_levels(overviewLevels(width, height));
 
+      // read_all_f64 is the one reader that decodes any source dtype (Int16,
+      // Float32, ...) to a common type; the typed per-band readers
+      // (read_band_f32, ...) require the source to already be that type and
+      // throw otherwise. So decode to f64 once, then narrow to the COG's pixel
+      // type. The transient f64 + f32 copies are bounded by the caller's
+      // large-raster warning. The data is pixel-interleaved (band0,band1,... per
+      // pixel), matching what CogBuilder expects.
       const pixels = reader.read_all_f64();
       const isByte = info.sample_format === "uint" && info.bits_per_sample <= 8;
       return isByte
