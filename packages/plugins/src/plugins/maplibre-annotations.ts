@@ -131,10 +131,16 @@ export const maplibreAnnotationsPlugin: GeoLibrePlugin = {
     // toolbar does not vanish and the stored position stays consistent.
     annotationsPosition = previousPosition;
     if (!app.addMapControl(toolbarControl, previousPosition)) {
-      // Both re-adds failed: the control is no longer on the map, so drop the
-      // reference and deactivate so the plugin's state matches reality.
+      // Both re-adds failed: the control is gone from the map, so run the same
+      // teardown as deactivate() (drop draw handlers, cursor, drag-pan, text
+      // input, tracked layer) instead of leaving the plugin half-active.
+      setActiveTool(null);
+      cancelTextInput();
+      unbindMap();
+      annotationLayerId = null;
       toolbarControl = null;
       pluginActive = false;
+      appApi = null;
     }
     return false;
   },
@@ -201,9 +207,20 @@ let labels: AnnotationLabels = {
   textPlaceholder: "Type label, Enter to place",
 };
 
-/** Override the toolbar strings (called from the app layer with translated text). */
+/**
+ * Override the toolbar strings (called from the app layer with translated
+ * text). Merges one level deep so a caller may pass a partial `tools` or
+ * `widthOptions` without dropping the other nested entries, and relabels an
+ * already-mounted toolbar so a runtime language change is reflected immediately.
+ */
 export function setAnnotationLabels(next: Partial<AnnotationLabels>): void {
-  labels = { ...labels, ...next };
+  labels = {
+    ...labels,
+    ...next,
+    tools: { ...labels.tools, ...next.tools },
+    widthOptions: { ...labels.widthOptions, ...next.widthOptions },
+  };
+  toolbarControl?.relabel();
 }
 
 function widthOptionLabel(value: number): string {
@@ -216,23 +233,27 @@ function widthOptionLabel(value: number): string {
 class AnnotationToolbarControl implements maplibregl.IControl {
   private container: HTMLElement | null = null;
   private toolButtons = new Map<AnnotationTool, HTMLButtonElement>();
+  // Closures that re-apply each element's translated text from `labels`, run on
+  // mount and again whenever the active language changes (see relabel()).
+  private relabelers: (() => void)[] = [];
 
   onAdd(): HTMLElement {
     const container = document.createElement("div");
     container.className =
       "maplibregl-ctrl maplibregl-ctrl-group geolibre-annotations-control";
-    container.setAttribute("aria-label", labels.toolbar);
+    this.relabelers = [
+      () => container.setAttribute("aria-label", labels.toolbar),
+    ];
 
     for (const tool of TOOL_ORDER) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "geolibre-annotations-tool";
-      button.title = labels.tools[tool];
-      button.setAttribute("aria-label", labels.tools[tool]);
       button.innerHTML = TOOL_ICONS[tool];
       button.addEventListener("click", () => {
         setActiveTool(activeTool === tool ? null : tool);
       });
+      this.applyLabel(button, () => labels.tools[tool]);
       this.toolButtons.set(tool, button);
       container.appendChild(button);
     }
@@ -241,44 +262,45 @@ class AnnotationToolbarControl implements maplibregl.IControl {
     color.type = "color";
     color.className = "geolibre-annotations-color";
     color.value = strokeColor;
-    color.title = labels.color;
-    color.setAttribute("aria-label", labels.color);
     color.addEventListener("input", () => {
       strokeColor = color.value;
     });
+    this.applyLabel(color, () => labels.color);
     container.appendChild(color);
 
     const width = document.createElement("select");
     width.className = "geolibre-annotations-width";
-    width.title = labels.width;
-    width.setAttribute("aria-label", labels.width);
     for (const value of WIDTH_VALUES) {
       const opt = document.createElement("option");
       opt.value = String(value);
-      opt.textContent = widthOptionLabel(value);
       if (value === strokeWidth) opt.selected = true;
+      this.relabelers.push(() => {
+        opt.textContent = widthOptionLabel(value);
+      });
       width.appendChild(opt);
     }
     width.addEventListener("change", () => {
       strokeWidth = Number(width.value) || DEFAULT_WIDTH;
     });
+    this.applyLabel(width, () => labels.width);
     container.appendChild(width);
 
     const deleteLast = this.makeActionButton(
-      labels.deleteLast,
+      () => labels.deleteLast,
       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg>',
       () => deleteLastAnnotation(),
     );
     container.appendChild(deleteLast);
 
     const clearAll = this.makeActionButton(
-      labels.clearAll,
+      () => labels.clearAll,
       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>',
       () => clearAllAnnotations(),
     );
     container.appendChild(clearAll);
 
     this.container = container;
+    this.relabel();
     return container;
   }
 
@@ -286,20 +308,33 @@ class AnnotationToolbarControl implements maplibregl.IControl {
     this.container?.remove();
     this.container = null;
     this.toolButtons.clear();
+    this.relabelers = [];
+  }
+
+  /** Re-apply all translated strings (called on mount and on language change). */
+  relabel(): void {
+    for (const relabeler of this.relabelers) relabeler();
+  }
+
+  /** Point an element's title/aria-label at a label getter and track it for relabel. */
+  private applyLabel(element: HTMLElement, getLabel: () => string): void {
+    this.relabelers.push(() => {
+      element.title = getLabel();
+      element.setAttribute("aria-label", getLabel());
+    });
   }
 
   private makeActionButton(
-    label: string,
+    getLabel: () => string,
     icon: string,
     onClick: () => void,
   ): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "geolibre-annotations-action";
-    button.title = label;
-    button.setAttribute("aria-label", label);
     button.innerHTML = icon;
     button.addEventListener("click", onClick);
+    this.applyLabel(button, getLabel);
     return button;
   }
 
@@ -427,8 +462,8 @@ function handleMouseDown(event: maplibregl.MapMouseEvent): void {
   ) {
     return;
   }
-  // Suppress the map's own drag-to-pan for this gesture.
-  event.preventDefault();
+  // Map drag-to-pan is already disabled by setActiveTool() for these tools, so
+  // nothing else is needed to keep the gesture from panning the map.
   isDragging = true;
   dragStart = event.lngLat;
   freehandPath = [[event.lngLat.lng, event.lngLat.lat]];
@@ -628,12 +663,20 @@ function buildArrow(
   const py = ux;
   const baseX = endPx.x - ux * ARROWHEAD_LENGTH_PX;
   const baseY = endPx.y - uy * ARROWHEAD_LENGTH_PX;
-  const leftPx = { x: baseX + px * ARROWHEAD_HALF_WIDTH_PX, y: baseY + py * ARROWHEAD_HALF_WIDTH_PX };
-  const rightPx = { x: baseX - px * ARROWHEAD_HALF_WIDTH_PX, y: baseY - py * ARROWHEAD_HALF_WIDTH_PX };
 
   const tip = toPos(end);
-  const left = toPos(map.unproject([leftPx.x, leftPx.y]));
-  const right = toPos(map.unproject([rightPx.x, rightPx.y]));
+  const left = toPos(
+    map.unproject([
+      baseX + px * ARROWHEAD_HALF_WIDTH_PX,
+      baseY + py * ARROWHEAD_HALF_WIDTH_PX,
+    ]),
+  );
+  const right = toPos(
+    map.unproject([
+      baseX - px * ARROWHEAD_HALF_WIDTH_PX,
+      baseY - py * ARROWHEAD_HALF_WIDTH_PX,
+    ]),
+  );
   const head: Feature = {
     type: "Feature",
     geometry: {
@@ -658,7 +701,12 @@ function buildArrow(
 // a bare `annotation-N` would clash and make "Delete last" drop a saved arrow).
 const ANNOTATION_ID_PREFIX = Math.random().toString(36).slice(2, 8);
 let annotationCounter = 0;
-/** A session-unique id grouping the parts of one annotation (e.g. arrow + head). */
+/**
+ * A session-unique id grouping the parts of one annotation (e.g. an arrow's
+ * shaft and head). Uniqueness is what lets "Delete last" remove every part of a
+ * grouped annotation by id regardless of their order in the feature array; the
+ * per-load prefix plus monotonic counter guarantees it within and across loads.
+ */
 function nextAnnotationId(): string {
   annotationCounter += 1;
   return `annotation-${ANNOTATION_ID_PREFIX}-${annotationCounter}`;
