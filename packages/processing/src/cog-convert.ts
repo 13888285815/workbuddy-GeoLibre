@@ -54,7 +54,16 @@ export function initCogWasm(
   if (!wasmReady) {
     wasmReady = init(
       moduleOrPath === undefined ? undefined : { module_or_path: moduleOrPath },
-    ).then(() => undefined);
+    ).then(
+      () => undefined,
+      (error: unknown) => {
+        // Do not cache a rejection: a transient failure (e.g. fetching the wasm
+        // asset) would otherwise make every later conversion reject until the
+        // page reloads. Mirrors getRasterControlClass in maplibre-raster.ts.
+        wasmReady = null;
+        throw error;
+      },
+    );
   }
   return wasmReady;
 }

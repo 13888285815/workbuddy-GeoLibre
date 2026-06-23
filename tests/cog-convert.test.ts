@@ -61,8 +61,9 @@ describe("convertGeoTiffToCog", () => {
     assert.equal(out.epsg, 4326);
     assert.equal(out.nodata, 0);
 
-    // Pixel values survive (the fixture is row-major `(i % 500) - 11`). This
-    // also exercises the single-band fast path (read_band_f32 -> write_f32).
+    // Pixel values survive (the fixture is row-major `(i % 500) - 11`).
+    // read_band_f32 is used here to verify the written COG; the converter itself
+    // decodes with read_all_f64 so it handles any source dtype.
     const reader = new GeoTiffReader(cog);
     try {
       const band = reader.read_band_f32(0);

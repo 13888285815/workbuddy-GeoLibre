@@ -549,6 +549,11 @@ function createRasterControl(
           name: info.name,
           readBytes: async () => {
             const response = await fetch(objectUrl);
+            if (!response.ok) {
+              throw new Error(
+                `Failed to read raster bytes: ${response.status}`,
+              );
+            }
             return new Uint8Array(await response.arrayBuffer());
           },
           dismiss: () => {

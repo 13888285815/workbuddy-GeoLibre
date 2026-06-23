@@ -730,13 +730,14 @@ export function DesktopShell({
             : t("raster.cogConvertConfirm", { name });
         if (!window.confirm(message)) return;
         const cog = await convertGeoTiffToCog(bytes);
-        // Drop the failed layer only after the conversion succeeds, so a failure
-        // leaves the original errored layer (and its message) in place.
-        dismiss();
         // The cast is required: TS types Uint8Array as Uint8Array<ArrayBufferLike>,
         // which is not directly assignable to BlobPart's ArrayBufferView.
         const file = new File([cog as BlobPart], name, { type: "image/tiff" });
         await addRasterToMap(createAppAPI(mapControllerRef), file, { name });
+        // Drop the failed layer only after the replacement is fully loaded, so
+        // any failure above (conversion or re-add) leaves the original errored
+        // layer (and its message) in place.
+        dismiss();
       } catch (error) {
         console.error("[GeoLibre] Failed to convert GeoTIFF to COG", error);
         window.alert(t("raster.cogConvertFailed", { name }));
