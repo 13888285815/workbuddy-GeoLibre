@@ -381,10 +381,23 @@ function bindMap(map: maplibregl.Map): void {
   map.on("mousedown", handleMouseDown);
   map.on("mousemove", handleMouseMove);
   map.on("mouseup", handleMouseUp);
+  // A map "mouseup" only fires over the canvas; if a drag is released outside
+  // it, this window fallback still ends the gesture so isDragging/drag-pan do
+  // not stay stuck and the preview does not linger.
+  window.addEventListener("mouseup", handleWindowMouseUp);
   // Scope Escape to the map canvas (capture, ahead of MapLibre's own handler)
   // rather than the document, so pressing Escape in an unrelated input (layer
   // name field, search box, attribute cell) cannot cancel an annotation tool.
   map.getCanvas().addEventListener("keydown", handleKeyDown, { capture: true });
+}
+
+/** End a drag released outside the canvas: discard the in-progress shape. */
+function handleWindowMouseUp(): void {
+  if (!isDragging) return;
+  isDragging = false;
+  dragStart = null;
+  freehandPath = [];
+  if (boundMap) clearPreview(boundMap);
 }
 
 function unbindMap(): void {
@@ -394,6 +407,7 @@ function unbindMap(): void {
   map.off("mousedown", handleMouseDown);
   map.off("mousemove", handleMouseMove);
   map.off("mouseup", handleMouseUp);
+  window.removeEventListener("mouseup", handleWindowMouseUp);
   map.getCanvas().removeEventListener("keydown", handleKeyDown, {
     capture: true,
   });
@@ -475,9 +489,11 @@ function handleMouseMove(event: maplibregl.MapMouseEvent): void {
   if (!map) return;
 
   if (activeTool === "arrow" && arrowStart) {
+    // Preview the shaft and a provisional arrowhead so the head's size and
+    // direction are visible before the second click commits the arrow.
     setPreview(map, {
       type: "FeatureCollection",
-      features: [lineFeature([toPos(arrowStart), toPos(event.lngLat)])],
+      features: arrowFeatures(map, arrowStart, event.lngLat),
     });
     return;
   }
@@ -489,12 +505,30 @@ function handleMouseMove(event: maplibregl.MapMouseEvent): void {
   } else if (activeTool === "ellipse") {
     setPreview(map, polygonPreview(ellipseRing(dragStart, event.lngLat)));
   } else if (activeTool === "freehand") {
-    freehandPath.push([event.lngLat.lng, event.lngLat.lat]);
+    // Sample sparsely: only keep a point once the cursor has moved a few pixels
+    // from the last, so a long stroke does not accumulate thousands of vertices.
+    if (movedEnoughForFreehand(map, event.lngLat)) {
+      freehandPath.push([event.lngLat.lng, event.lngLat.lat]);
+    }
     setPreview(map, {
       type: "FeatureCollection",
       features: [lineFeature(freehandPath)],
     });
   }
+}
+
+const FREEHAND_MIN_PIXELS = 4;
+
+/** True when the cursor has moved at least the sampling threshold from the last point. */
+function movedEnoughForFreehand(
+  map: maplibregl.Map,
+  lngLat: maplibregl.LngLat,
+): boolean {
+  const last = freehandPath[freehandPath.length - 1];
+  if (!last) return true;
+  const a = map.project(lngLat);
+  const b = map.project({ lng: last[0], lat: last[1] });
+  return Math.hypot(a.x - b.x, a.y - b.y) >= FREEHAND_MIN_PIXELS;
 }
 
 function handleMouseUp(event: maplibregl.MapMouseEvent): void {
@@ -631,16 +665,25 @@ function textFeature(lngLat: maplibregl.LngLat, text: string): Feature {
   return {
     type: "Feature",
     geometry: { type: "Point", coordinates: toPos(lngLat) },
-    properties: { __annotation: "text", shape: TEXT_MARKER_SHAPE, text },
+    // `text-color` is read per-feature by the layer-sync text-marker layer, so
+    // each label keeps the color it was placed with (no retroactive recolor).
+    properties: {
+      __annotation: "text",
+      shape: TEXT_MARKER_SHAPE,
+      text,
+      "text-color": strokeColor,
+    },
   };
 }
 
 /**
  * Build the two features of an arrow: the shaft (a line) and a filled triangle
  * arrowhead at the end. The head is sized in screen pixels at the current zoom
- * and filled with the shaft color so the two read as one arrow.
+ * and filled with the shaft color so the two read as one arrow. Returns an empty
+ * array for a zero-length arrow. Used for both the live preview and the
+ * committed arrow; the caller stamps a shared `annotationId` (see buildArrow).
  */
-function buildArrow(
+function arrowFeatures(
   map: maplibregl.Map,
   start: maplibregl.LngLat,
   end: maplibregl.LngLat,
@@ -653,8 +696,6 @@ function buildArrow(
   if (length < 2) return [];
 
   const shaft = lineFeature([toPos(start), toPos(end)]);
-  const annotationId = nextAnnotationId();
-  (shaft.properties as Record<string, unknown>).annotationId = annotationId;
 
   const ux = dx / length;
   const uy = dy / length;
@@ -685,7 +726,6 @@ function buildArrow(
     },
     properties: {
       __annotation: "arrowhead",
-      annotationId,
       fill: strokeColor,
       "fill-opacity": 1,
       stroke: strokeColor,
@@ -694,6 +734,21 @@ function buildArrow(
   };
 
   return [shaft, head];
+}
+
+/** An arrow's features with a shared `annotationId` so its parts delete together. */
+function buildArrow(
+  map: maplibregl.Map,
+  start: maplibregl.LngLat,
+  end: maplibregl.LngLat,
+): Feature[] {
+  const features = arrowFeatures(map, start, end);
+  if (!features.length) return features;
+  const annotationId = nextAnnotationId();
+  for (const feature of features) {
+    (feature.properties as Record<string, unknown>).annotationId = annotationId;
+  }
+  return features;
 }
 
 // A per-load random prefix so ids minted this session cannot collide with ids
@@ -856,11 +911,6 @@ function appendAnnotationFeatures(features: Feature[]): void {
   if (!features.length) return;
   const store = useAppStore.getState();
   const existing = findAnnotationLayer(store.layers);
-  const hasText = features.some(
-    (feature) =>
-      (feature.properties as Record<string, unknown> | null)?.shape ===
-      TEXT_MARKER_SHAPE,
-  );
 
   if (existing) {
     annotationLayerId = existing.id;
@@ -869,17 +919,14 @@ function appendAnnotationFeatures(features: Feature[]): void {
       features: [...(existing.geojson?.features ?? []), ...features],
     };
     store.updateLayer(existing.id, { geojson: next });
-    // Label color is layer-level (the text_marker symbol layer reads
-    // layer.style.textColor, not a per-feature property), so apply the toolbar
-    // color whenever text is placed. Shapes/arrows carry per-feature color; text
-    // shares one layer color, latest-wins (per-label color is a follow-up).
-    if (hasText) store.setLayerStyle(existing.id, { textColor: strokeColor });
     return;
   }
 
   // Build the layer fully and add it in a single store mutation, so it never
   // appears with `sourceKind`/`simpleStyleEnabled` unset (which would briefly
-  // render the first annotation without its per-feature colors).
+  // render the first annotation without its per-feature colors). Text labels
+  // carry their own `text-color`, shapes/arrows their own stroke/fill, so no
+  // layer-level color needs setting here.
   const id = crypto.randomUUID();
   const layer: GeoLibreLayer = {
     id,
@@ -893,7 +940,6 @@ function appendAnnotationFeatures(features: Feature[]): void {
       // Force the simplestyle path on so per-feature stroke/fill always apply,
       // even when the first annotation is text (which carries no simplestyle).
       simpleStyleEnabled: true,
-      ...(hasText ? { textColor: strokeColor } : {}),
     },
     metadata: { sourceKind: ANNOTATIONS_SOURCE_KIND },
     geojson: { type: "FeatureCollection", features },

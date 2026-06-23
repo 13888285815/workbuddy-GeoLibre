@@ -1677,7 +1677,14 @@ function applyVectorDataRenderLayers(
           visibility,
         },
         paint: {
-          "text-color": styleValue(layer.style, "textColor"),
+          // Honor an optional per-feature `text-color` (used by annotation text
+          // labels so each can keep its own color); text markers without it fall
+          // back to the layer's text color.
+          "text-color": [
+            "coalesce",
+            ["get", "text-color"],
+            styleValue(layer.style, "textColor"),
+          ],
           "text-halo-color": styleValue(layer.style, "textHaloColor"),
           "text-halo-width": Math.max(
             0,
