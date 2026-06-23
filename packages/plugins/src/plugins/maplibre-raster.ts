@@ -536,6 +536,10 @@ function createRasterControl(
       return;
     }
     const objectUrl = info.source.objectUrl;
+    // info.name is normally derived from the file name, but fall back to the
+    // file name (then the id) so an unlabeled layer never interpolates an empty
+    // or "undefined" name into the conversion prompt.
+    const name = info.name || info.source.fileName || layerId;
     const handler = nonTiledRasterHandler;
     nonTiledInFlight.add(layerId);
     // Invoke inside the promise chain so even a synchronous throw from the
@@ -546,7 +550,7 @@ function createRasterControl(
       .then(() =>
         handler({
           layerId,
-          name: info.name,
+          name,
           readBytes: async () => {
             const response = await fetch(objectUrl);
             if (!response.ok) {

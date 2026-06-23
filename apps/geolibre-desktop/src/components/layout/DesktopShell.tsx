@@ -106,12 +106,6 @@ import type { ThemeMode } from "../../hooks/useThemeMode";
 import type { ProjectUrlLoadState } from "../../hooks/useProjectUrlLoader";
 
 /**
- * Confirm loading a vector source whose feature count tripped the loader's
- * large-dataset guard. Mirrors the OSM PBF drop guard's blocking
- * `window.confirm` (see the handlers below): a `false` return aborts that one
- * file's load without affecting the rest of a multi-file drop.
- */
-/**
  * Sample count (width × height × bands) above which in-browser COG conversion
  * gets an extra "this may be slow / memory-intensive" confirmation. The
  * converter reads the whole raster into memory as f64, so ~40M samples is
@@ -119,6 +113,12 @@ import type { ProjectUrlLoadState } from "../../hooks/useProjectUrlLoader";
  */
 const LARGE_RASTER_SAMPLE_LIMIT = 40_000_000;
 
+/**
+ * Confirm loading a vector source whose feature count tripped the loader's
+ * large-dataset guard. Mirrors the OSM PBF drop guard's blocking
+ * `window.confirm` (see the handlers below): a `false` return aborts that one
+ * file's load without affecting the rest of a multi-file drop.
+ */
 function confirmLargeVectorDataset({ name, featureCount }: LargeVectorDataset) {
   return window.confirm(
     i18n.t("toolbar.item.largeVectorDesc", {
@@ -719,6 +719,7 @@ export function DesktopShell({
       try {
         const bytes = await readBytes();
         const info = await readGeoTiffInfo(bytes);
+        if (!info.ok) throw new Error("Could not read GeoTIFF metadata.");
         const samples = info.width * info.height * Math.max(info.bands, 1);
         const message =
           samples > LARGE_RASTER_SAMPLE_LIMIT
