@@ -84,18 +84,17 @@ export const maplibreAnnotationsPlugin: GeoLibrePlugin = {
   name: "Annotations",
   version: "0.1.0",
   activate: (app: GeoLibreAppAPI) => {
-    appApi = app;
-    pluginActive = true;
-
     toolbarControl ??= new AnnotationToolbarControl();
     const added = app.addMapControl(toolbarControl, annotationsPosition);
     if (!added) {
       toolbarControl = null;
-      appApi = null;
-      pluginActive = false;
       return false;
     }
 
+    // Commit module state only after the control is on the map, so a failed (or
+    // throwing) add never leaves the plugin marked active without a toolbar.
+    appApi = app;
+    pluginActive = true;
     const map = app.getMap?.();
     if (map) bindMap(map);
     rediscoverAnnotationLayer();
@@ -406,9 +405,7 @@ function bindMap(map: maplibregl.Map): void {
 /** End a drag released outside the canvas: discard the in-progress shape. */
 function handleWindowMouseUp(): void {
   if (!isDragging) return;
-  isDragging = false;
-  dragStart = null;
-  freehandPath = [];
+  resetDrawState();
   if (boundMap) clearPreview(boundMap);
 }
 
