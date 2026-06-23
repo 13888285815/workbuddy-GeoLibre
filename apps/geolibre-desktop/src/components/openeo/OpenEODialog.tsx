@@ -101,9 +101,11 @@ type Reducer = "none" | "mean" | "median" | "min" | "max";
 
 type BusyAction = "connect" | "job" | "jobs" | "download";
 
-const DEFAULT_BACKEND_URL = "https://earthengine.openeo.org";
-const DEFAULT_COLLECTION = "COPERNICUS/S1_GRD";
-const DEFAULT_BANDS = "VV,VH";
+// Copernicus Data Space Ecosystem: a free, actively maintained openEO backend
+// whose capabilities/collections/processes are public (no auth needed to browse).
+const DEFAULT_BACKEND_URL = "https://openeo.dataspace.copernicus.eu";
+const DEFAULT_COLLECTION = "SENTINEL2_L2A";
+const DEFAULT_BANDS = "B04,B08";
 const DEFAULT_OUTPUT_FORMAT = "GTiff";
 const CONNECT_TIMEOUT_MS = 30_000;
 const OPERATION_TIMEOUT_MS = 60_000;
@@ -226,8 +228,8 @@ export function OpenEODialog({ open, onOpenChange }: OpenEODialogProps) {
   const [south, setSouth] = useState("48.06");
   const [east, setEast] = useState("16.65");
   const [north, setNorth] = useState("48.35");
-  const [startDate, setStartDate] = useState("2017-03-01");
-  const [endDate, setEndDate] = useState("2017-04-01");
+  const [startDate, setStartDate] = useState("2023-06-01");
+  const [endDate, setEndDate] = useState("2023-06-15");
   const [reducer, setReducer] = useState<Reducer>("mean");
   const [dimension, setDimension] = useState("t");
   const [outputFormat, setOutputFormat] = useState(DEFAULT_OUTPUT_FORMAT);
