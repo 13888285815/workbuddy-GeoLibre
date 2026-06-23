@@ -181,6 +181,8 @@ const WIDTH_VALUES = [2, 3, 5] as const;
  */
 export interface AnnotationLabels {
   toolbar: string;
+  /** Name of the layer the annotations are stored in (shown in the Layers panel). */
+  layerName: string;
   tools: Record<AnnotationTool, string>;
   color: string;
   width: string;
@@ -192,6 +194,7 @@ export interface AnnotationLabels {
 
 let labels: AnnotationLabels = {
   toolbar: "Annotation tools",
+  layerName: ANNOTATIONS_LAYER_NAME,
   tools: {
     text: "Text",
     arrow: "Arrow",
@@ -327,8 +330,9 @@ class AnnotationToolbarControl implements maplibregl.IControl {
   /** Point an element's title/aria-label at a label getter and track it for relabel. */
   private applyLabel(element: HTMLElement, getLabel: () => string): void {
     this.relabelers.push(() => {
-      element.title = getLabel();
-      element.setAttribute("aria-label", getLabel());
+      const label = getLabel();
+      element.title = label;
+      element.setAttribute("aria-label", label);
     });
   }
 
@@ -555,7 +559,10 @@ function handleMouseUp(event: maplibregl.MapMouseEvent): void {
     dragStart = null;
     freehandPath = [];
     clearPreview(map);
-    if (path.length >= 2) appendAnnotationFeatures([lineFeature(path)]);
+    // Require a real stroke: a tap (or a drag smaller than the sampling
+    // threshold) yields just the seeded start and the release point, which would
+    // commit a zero-length line. A genuine drag samples at least one mid-point.
+    if (path.length >= 3) appendAnnotationFeatures([lineFeature(path)]);
     return;
   }
 
@@ -718,21 +725,20 @@ function arrowFeatures(
   // Perpendicular unit vector.
   const px = -uy;
   const py = ux;
-  const baseX = endPx.x - ux * ARROWHEAD_LENGTH_PX;
-  const baseY = endPx.y - uy * ARROWHEAD_LENGTH_PX;
+  // Shrink the head for a short shaft so its base never sits behind the start
+  // point (which would draw an inverted arrowhead the shaft punches through).
+  const headLength = Math.min(ARROWHEAD_LENGTH_PX, length * 0.6);
+  const headHalfWidth =
+    ARROWHEAD_HALF_WIDTH_PX * (headLength / ARROWHEAD_LENGTH_PX);
+  const baseX = endPx.x - ux * headLength;
+  const baseY = endPx.y - uy * headLength;
 
   const tip = toPos(end);
   const left = toPos(
-    map.unproject([
-      baseX + px * ARROWHEAD_HALF_WIDTH_PX,
-      baseY + py * ARROWHEAD_HALF_WIDTH_PX,
-    ]),
+    map.unproject([baseX + px * headHalfWidth, baseY + py * headHalfWidth]),
   );
   const right = toPos(
-    map.unproject([
-      baseX - px * ARROWHEAD_HALF_WIDTH_PX,
-      baseY - py * ARROWHEAD_HALF_WIDTH_PX,
-    ]),
+    map.unproject([baseX - px * headHalfWidth, baseY - py * headHalfWidth]),
   );
   const head: Feature = {
     type: "Feature",
@@ -879,10 +885,12 @@ function setPreview(map: maplibregl.Map, data: FeatureCollection): void {
     id: PREVIEW_LINE_LAYER_ID,
     type: "line",
     source: PREVIEW_SOURCE_ID,
+    // No dash: a dashed pattern was also drawn over the arrowhead polygon's
+    // outline, so the previewed head looked unlike the (solid) committed one.
+    // A solid, per-feature stroke makes the preview match the result exactly.
     paint: {
       "line-color": ["coalesce", ["get", "stroke"], strokeColor],
       "line-width": ["coalesce", ["get", "stroke-width"], strokeWidth],
-      "line-dasharray": [2, 1],
     },
   });
 }
@@ -943,7 +951,7 @@ function appendAnnotationFeatures(features: Feature[]): void {
   const id = crypto.randomUUID();
   const layer: GeoLibreLayer = {
     id,
-    name: ANNOTATIONS_LAYER_NAME,
+    name: labels.layerName,
     type: "geojson",
     source: { type: "geojson" },
     visible: true,

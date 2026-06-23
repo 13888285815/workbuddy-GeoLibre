@@ -171,6 +171,7 @@ export function TopToolbar({
     });
     setAnnotationLabels({
       toolbar: t("annotations.toolbar"),
+      layerName: t("annotations.layerName"),
       tools: {
         text: t("annotations.tools.text"),
         arrow: t("annotations.tools.arrow"),

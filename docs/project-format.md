@@ -186,6 +186,12 @@ milliseconds:
 
 Manual refresh uses the same saved source URL without requiring this metadata.
 
+When a `geojson` layer enables `style.simpleStyleEnabled`, individual features
+may override the layer style with [simplestyle-spec](https://github.com/mapbox/simplestyle-spec)
+properties (`stroke`, `fill`, `stroke-width`, `fill-opacity`, ...). GeoLibre also
+honors a per-feature `text-color` on text-marker points (used by the Annotations
+layer), falling back to `style.textColor` when a feature does not set it.
+
 ## Layer types
 
 | Type             | v1.0 status                                                                                        |

@@ -1441,6 +1441,7 @@
   },
   "annotations": {
     "toolbar": "Annotation tools",
+    "layerName": "Annotations",
     "tools": {
       "text": "Text",
       "arrow": "Arrow",

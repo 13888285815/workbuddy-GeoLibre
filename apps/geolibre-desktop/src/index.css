@@ -880,7 +880,11 @@ body,
 }
 
 .geolibre-annotations-control .geolibre-annotations-color {
+  /* `border: none` removes the browser's <input> chrome but, at equal
+   * specificity, also cancels the separator rule above, so re-apply the
+   * top divider explicitly. */
   border: none;
+  border-top: 1px solid hsl(var(--border));
   cursor: pointer;
   height: 24px;
   margin: 2px auto;
