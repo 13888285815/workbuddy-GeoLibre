@@ -152,7 +152,9 @@ export {
   closeRasterLayerPanel,
   openRasterLayerPanel,
   restoreRasterLayers,
+  setNonTiledRasterHandler,
   setRasterPixelInspect,
+  type NonTiledRasterRequest,
 } from "./plugins/maplibre-raster";
 export {
   RASTER_MAX_CLASSES,

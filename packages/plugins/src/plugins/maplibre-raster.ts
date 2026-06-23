@@ -106,6 +106,53 @@ let rasterControlInterleaved = true;
 const localBytesUrls = new Map<string, string>();
 
 /**
+ * Details of a local raster that the panel could not render because it is a
+ * striped (non-tiled) GeoTIFF rather than a tiled COG. Passed to a host handler
+ * registered via {@link setNonTiledRasterHandler}, which can offer to convert it
+ * to a COG (the conversion + UI live in the app layer, which has i18n and the
+ * client-side converter; this framework-agnostic package only detects the case).
+ */
+export interface NonTiledRasterRequest {
+  /** The failed layer's id. */
+  layerId: string;
+  /** The failed layer's display name (used for the converted layer too). */
+  name: string;
+  /** Reads the original uploaded bytes. Must be awaited before {@link dismiss},
+   * which revokes the underlying blob URL. */
+  readBytes: () => Promise<Uint8Array>;
+  /** Removes the failed layer from the map and the store. */
+  dismiss: () => void;
+}
+
+type NonTiledRasterHandler = (
+  request: NonTiledRasterRequest,
+) => void | Promise<void>;
+
+let nonTiledRasterHandler: NonTiledRasterHandler | null = null;
+// Layer ids currently being handled, so a repeated 'error' event for the same
+// failed layer does not prompt twice.
+const nonTiledInFlight = new Set<string>();
+
+/**
+ * Register (or clear, with `null`) a handler invoked when a local GeoTIFF fails
+ * to load because it is striped rather than tiled. The app uses this to offer an
+ * in-browser convert-to-COG flow. Only one handler is active at a time.
+ *
+ * @param handler - The handler, or `null` to unregister.
+ */
+export function setNonTiledRasterHandler(
+  handler: NonTiledRasterHandler | null,
+): void {
+  nonTiledRasterHandler = handler;
+}
+
+/** Whether a raster load error is the upstream "striped, not tiled" failure
+ * (maplibre-gl-raster rejects non-tiled GeoTIFFs with this message). */
+function isNonTiledRasterError(error: Error | null | undefined): boolean {
+  return error != null && /not tiled/i.test(error.message);
+}
+
+/**
  * Opens the maplibre-gl-raster panel, mounting the control on first use.
  * Replaces the former Add Raster Layer dialog: the panel loads COGs and
  * GeoTIFFs from URLs or local files and edits bands, rescale, colormaps,
@@ -470,6 +517,40 @@ function createRasterControl(
       URL.revokeObjectURL(blobUrl);
       localBytesUrls.delete(event.layerId);
     }
+  });
+  // A striped (non-tiled) GeoTIFF cannot be streamed as tiles, so the upstream
+  // fails the layer with a "not tiled" error. Offer the registered host handler
+  // a chance to convert it to a COG instead of leaving the user with a blank,
+  // errored layer. See opengeos/GeoLibre#789.
+  control.on("error", (event) => {
+    if (!event.layerId || !nonTiledRasterHandler) return;
+    const layerId = event.layerId;
+    if (nonTiledInFlight.has(layerId)) return;
+    const info = control.getRaster(layerId);
+    // Only local files can be re-read and converted in the browser; remote
+    // non-tiled URLs keep the plain error.
+    if (!info || !isNonTiledRasterError(info.error) || info.source.kind !== "file") {
+      return;
+    }
+    const objectUrl = info.source.objectUrl;
+    nonTiledInFlight.add(layerId);
+    void Promise.resolve(
+      nonTiledRasterHandler({
+        layerId,
+        name: info.name,
+        readBytes: async () => {
+          const response = await fetch(objectUrl);
+          return new Uint8Array(await response.arrayBuffer());
+        },
+        dismiss: () => {
+          // removeRaster emits 'rasterremove', which syncs the removal into the
+          // store and revokes any retained blob URL.
+          control.removeRaster(layerId);
+        },
+      }),
+      // Clear the guard once handling settles (converted, cancelled, or failed)
+      // so a later retry of the same file can prompt again.
+    ).finally(() => nonTiledInFlight.delete(layerId));
   });
   // syncRasterLayersToStore re-reads getState().collapsed when these fire.
   // Safe: expand()/collapse() delegate to toggle(), which flips

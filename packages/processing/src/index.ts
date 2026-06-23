@@ -142,3 +142,10 @@ export {
   listGeolibreWasmTools,
   outputBaseName,
 } from "./wasm-client";
+export {
+  initCogWasm,
+  readGeoTiffInfo,
+  isTiledGeoTiff,
+  convertGeoTiffToCog,
+  type GeoTiffInfo,
+} from "./cog-convert";

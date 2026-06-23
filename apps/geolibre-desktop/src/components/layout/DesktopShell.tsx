@@ -22,9 +22,11 @@ import {
   restoreThreeDTilesLayers,
   restoreVectorLayers,
   setBookmarkCaptureLabel,
+  setNonTiledRasterHandler,
   startLayerGeometryEdit,
   subscribeGeometryEdit,
 } from "@geolibre/plugins";
+import { convertGeoTiffToCog, readGeoTiffInfo } from "@geolibre/processing";
 import {
   type CSSProperties,
   type DragEvent,
@@ -109,6 +111,14 @@ import type { ProjectUrlLoadState } from "../../hooks/useProjectUrlLoader";
  * `window.confirm` (see the handlers below): a `false` return aborts that one
  * file's load without affecting the rest of a multi-file drop.
  */
+/**
+ * Sample count (width × height × bands) above which in-browser COG conversion
+ * gets an extra "this may be slow / memory-intensive" confirmation. The
+ * converter reads the whole raster into memory as f64, so ~40M samples is
+ * roughly where the transient allocation starts to be felt.
+ */
+const LARGE_RASTER_SAMPLE_LIMIT = 40_000_000;
+
 function confirmLargeVectorDataset({ name, featureCount }: LargeVectorDataset) {
   return window.confirm(
     i18n.t("toolbar.item.largeVectorDesc", {
@@ -698,6 +708,40 @@ export function DesktopShell({
       registerXyzTileProtocol();
     }
   }, []);
+
+  // When a local GeoTIFF fails to load because it is striped (not a tiled COG),
+  // offer to convert it to a COG in the browser and load the result. The raster
+  // plugin detects the case and hands us the bytes; the conversion and the
+  // prompt live here because this layer has i18n and the client-side converter.
+  // See opengeos/GeoLibre#789.
+  useEffect(() => {
+    setNonTiledRasterHandler(async ({ name, readBytes, dismiss }) => {
+      try {
+        const bytes = await readBytes();
+        const info = await readGeoTiffInfo(bytes);
+        const samples = info.width * info.height * Math.max(info.bands, 1);
+        const message =
+          samples > LARGE_RASTER_SAMPLE_LIMIT
+            ? t("raster.cogConvertLargeConfirm", {
+                name,
+                width: info.width,
+                height: info.height,
+              })
+            : t("raster.cogConvertConfirm", { name });
+        if (!window.confirm(message)) return;
+        const cog = await convertGeoTiffToCog(bytes);
+        // Drop the failed layer only after the conversion succeeds, so a failure
+        // leaves the original errored layer (and its message) in place.
+        dismiss();
+        const file = new File([cog as BlobPart], name, { type: "image/tiff" });
+        await addRasterToMap(createAppAPI(mapControllerRef), file, { name });
+      } catch (error) {
+        console.error("[GeoLibre] Failed to convert GeoTIFF to COG", error);
+        window.alert(t("raster.cogConvertFailed", { name }));
+      }
+    });
+    return () => setNonTiledRasterHandler(null);
+  }, [t]);
 
   useEffect(() => {
     // Restoration should run only when a project is loaded (projectGeneration)
