@@ -30,6 +30,139 @@ let loadingControl: IControl | null = null;
 // it doesn't attach a directions instance to a tool that is no longer active.
 let loadToken = 0;
 
+// Listeners notified whenever the waypoint set changes (add/remove/clear) or the
+// instance is attached/torn down. The desktop shell's mode banner subscribes via
+// useSyncExternalStore so it can mirror the live waypoint count and enable or
+// disable its "remove last"/"clear" actions. Kept here (not in the app) so the
+// plugin stays the single owner of the directions instance.
+type DirectionsStateListener = () => void;
+const directionsStateListeners = new Set<DirectionsStateListener>();
+
+// True while a removeLastDirectionsWaypoint() call is mid route-refetch. Exposed
+// so the banner can disable its "remove last" button until the async call
+// settles, which closes the rapid-click window where two clicks would both read
+// the same pre-removal count and target an index the first call already removed.
+let removalInFlight = false;
+// Bumped on every removal start and on clear. A removal's finalizer compares its
+// captured value against this so a superseded removal (aborted by clear, then
+// replaced by a new removal) can't flip the flag back for the newer request.
+let removalToken = 0;
+
+function notifyDirectionsState(): void {
+  // Isolate subscriber failures so one throwing listener does not block the
+  // rest from receiving the update.
+  for (const listener of directionsStateListeners) {
+    try {
+      listener();
+    } catch (error) {
+      console.error("Directions: state listener threw.", error);
+    }
+  }
+}
+
+/**
+ * Subscribe to directions waypoint-set changes. The listener fires after every
+ * add, remove, clear, and on attach/teardown.
+ *
+ * @param listener Callback invoked on each change.
+ * @returns An unsubscribe function.
+ */
+export function subscribeDirectionsState(
+  listener: DirectionsStateListener,
+): () => void {
+  directionsStateListeners.add(listener);
+  return () => {
+    directionsStateListeners.delete(listener);
+  };
+}
+
+/**
+ * The number of waypoints currently placed in the active directions session.
+ *
+ * @returns The waypoint count, or 0 when the tool is inactive or still loading.
+ */
+export function getDirectionsWaypointCount(): number {
+  return directions ? directions.waypoints.length : 0;
+}
+
+/**
+ * Whether a waypoint removal is currently awaiting its route refetch.
+ *
+ * @returns True between the removeWaypoint call and its settlement.
+ */
+export function isDirectionsRemovalInFlight(): boolean {
+  return removalInFlight;
+}
+
+/**
+ * Remove the most recently placed waypoint and re-fetch the route. No-op when
+ * the tool is inactive, no waypoints have been placed, or a removal is already
+ * in flight (so rapid clicks cannot queue concurrent calls on a stale count).
+ */
+export function removeLastDirectionsWaypoint(): void {
+  if (!directions || removalInFlight) return;
+  const count = directions.waypoints.length;
+  if (count === 0) return;
+  removalInFlight = true;
+  // Snapshot the session token: teardown()/attach() bump loadToken, so if the
+  // user exits (or exits and re-enters) before this settles, a stale token means
+  // we must not touch the now-current session's in-flight state or notify its
+  // subscribers (teardown already reset the flag for the session we belonged to).
+  const callToken = loadToken;
+  // Snapshot the removal token too: a clear (or a newer removal) bumps it, so a
+  // superseded finalizer can't reset removalInFlight for a later in-flight call.
+  const callRemovalToken = ++removalToken;
+  notifyDirectionsState();
+  // removeWaypoint re-fetches the route, which can reject (network/OSRM error).
+  // Log rather than let it surface as an unhandled rejection, mirroring how
+  // attach() handles its load failure; clear the in-flight flag either way.
+  void directions
+    .removeWaypoint(count - 1)
+    .catch((error: unknown) => {
+      // An AbortError means clearDirectionsWaypoints() intentionally cancelled
+      // this refetch; that is expected, not a failure, so don't log it. Match on
+      // the name rather than the DOMException type so a library that re-wraps the
+      // native abort in a plain Error is still recognized.
+      if (
+        error != null &&
+        typeof error === "object" &&
+        (error as { name?: unknown }).name === "AbortError"
+      ) {
+        return;
+      }
+      console.error("Directions: removeWaypoint failed", error);
+    })
+    .finally(() => {
+      // Skip if the session changed or this removal was superseded (e.g. by a
+      // clear or a newer removal); that newer owner manages the flag itself.
+      if (callToken !== loadToken || callRemovalToken !== removalToken) return;
+      removalInFlight = false;
+      notifyDirectionsState();
+    });
+}
+
+/**
+ * Clear all waypoints and the rendered route from the active directions
+ * session. No-op when the tool is inactive.
+ */
+export function clearDirectionsWaypoints(): void {
+  if (!directions) return;
+  // Supersede any in-flight removal's finalizer so it can't later reset the flag.
+  ++removalToken;
+  // Abort any in-flight route refetch (e.g. from a pending removal) so its
+  // response can't redraw a route onto the map after we clear; clear() alone
+  // does not cancel the request. abortController only exists while a request is
+  // ongoing. This keeps clear() honoring its contract (always clears) rather
+  // than bailing out and silently no-op'ing when a removal is in flight.
+  directions.abortController?.abort();
+  // clear() does not emit a waypoint event, so notify listeners directly.
+  directions.clear();
+  // Clearing supersedes any in-flight removal: drop the flag so the post-clear
+  // state is consistent (the aborted removal's .finally re-runs this harmlessly).
+  removalInFlight = false;
+  notifyDirectionsState();
+}
+
 function attach(app: GeoLibreAppAPI): void {
   const map = app.getMap?.();
   if (!map) return;
@@ -48,8 +181,17 @@ function attach(app: GeoLibreAppAPI): void {
       // this library version (it's absent from MapLibreGlDirectionsConfiguration).
       directions.interactive = true;
       directionsMap = currentMap;
+      // Mirror the live waypoint count to any subscribed UI (the mode banner).
+      // These events fire after the change is drawn, so the waypoints getter
+      // already reflects the new state when notifyDirectionsState reads it.
+      directions.on("addwaypoint", notifyDirectionsState);
+      directions.on("removewaypoint", notifyDirectionsState);
+      directions.on("setwaypoints", notifyDirectionsState);
       loadingControl = new LoadingIndicatorControl(directions);
       app.addMapControl(loadingControl, "top-right");
+      // The instance now exists; nudge subscribers so a banner that mounted
+      // before the lazy import resolved reads the (zeroed) count.
+      notifyDirectionsState();
     })
     .catch((error) => {
       console.error(
@@ -66,9 +208,19 @@ function teardown(app: GeoLibreAppAPI): void {
     app.removeMapControl(loadingControl);
     loadingControl = null;
   }
+  // Detach our listeners before destroy() so teardown is self-contained and
+  // does not rely on the library's destroy() also tearing down its emitter.
+  directions?.off("addwaypoint", notifyDirectionsState);
+  directions?.off("removewaypoint", notifyDirectionsState);
+  directions?.off("setwaypoints", notifyDirectionsState);
   directions?.destroy();
   directions = null;
   directionsMap = null;
+  // A removal can't be pending once the instance is gone; clear the flag so a
+  // teardown mid-refetch doesn't leave the next session's button disabled.
+  removalInFlight = false;
+  // Reset the count subscribers see to 0 now the session is gone.
+  notifyDirectionsState();
 }
 
 /**
