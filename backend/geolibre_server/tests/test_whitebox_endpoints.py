@@ -75,3 +75,39 @@ def test_tool_metadata_does_not_leak_internal_error(monkeypatch):
     assert excinfo.value.status_code == 503
     assert excinfo.value.detail == "Whitebox tool metadata is unavailable"
     assert _SECRET not in excinfo.value.detail
+
+
+def test_run_job_does_not_leak_error(monkeypatch):
+    """The background job runner stores only a generic, non-revealing error.
+
+    Exercises the main /run and /jobs/{id} security fix: a failing run must not
+    persist the raw exception (subprocess traceback + interpreter path) into the
+    job's ``error`` or ``messages`` fields.
+    """
+    job_id = "test-leak-job"
+    now = whitebox._utc_now()
+    with whitebox._JOBS_LOCK:
+        whitebox._JOBS[job_id] = whitebox.JobState(
+            id=job_id,
+            status="pending",
+            tool_id="noop",
+            created_at=now,
+            updated_at=now,
+        )
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError(_SECRET)
+
+    monkeypatch.setattr(whitebox, "create_runtime_session", _boom)
+    try:
+        whitebox._run_job(
+            job_id, whitebox.WhiteboxRunRequest(tool_id="noop")
+        )
+        job = whitebox._JOBS[job_id]
+        assert job.status == "failed"
+        assert job.error == "Tool execution failed. See the sidecar logs for details."
+        assert _SECRET not in (job.error or "")
+        assert all(_SECRET not in message for message in job.messages)
+    finally:
+        with whitebox._JOBS_LOCK:
+            whitebox._JOBS.pop(job_id, None)

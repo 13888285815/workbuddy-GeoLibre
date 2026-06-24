@@ -380,8 +380,14 @@ class ExternalRuntimeSession:
         )
 
         def _on_timeout() -> None:
-            timed_out.set()
-            _try_kill(process)
+            # Only flag a timeout if the process is still running: this avoids a
+            # false "timed out" when the timer fires in the narrow window after
+            # the process already exited (cleanly or with its own error) but
+            # before watchdog.cancel() runs. Gating on liveness is correct on
+            # every platform, unlike inspecting the sign of the exit code.
+            if process.poll() is None:
+                timed_out.set()
+                _try_kill(process)
 
         # Drain stderr in a background thread: a subprocess that fills the
         # stderr pipe buffer (~64 KB on Linux) while we are blocked reading
@@ -433,11 +439,10 @@ class ExternalRuntimeSession:
                 watchdog.cancel()
             stderr_thread.join(timeout=5)
             stderr = (stderr_chunks[0] if stderr_chunks else "").strip()
-            # Guard against the narrow race where the watchdog fires between
-            # process.wait() returning cleanly and watchdog.cancel(): a job that
-            # completed successfully always exits with rc == 0, so only treat a
-            # set flag as a real timeout when the process was actually killed.
-            if timed_out.is_set() and rc != 0:
+            # ``timed_out`` is only set when the watchdog killed a still-running
+            # process (see _on_timeout), so a set flag reliably means a genuine
+            # timeout regardless of the resulting exit code.
+            if timed_out.is_set():
                 raise RuntimeBootstrapError(
                     f"Whitebox tool run timed out after {timeout} seconds"
                 )
