@@ -437,7 +437,11 @@ class ExternalRuntimeSession:
                 rc = process.wait()
             finally:
                 watchdog.cancel()
-            stderr_thread.join(timeout=5)
+                # Join here (not after the block) so the drain thread is always
+                # awaited even when the stdout loop raises — the bounded timeout
+                # keeps it from blocking before the outer finally kills the
+                # process on the callback-exception path.
+                stderr_thread.join(timeout=5)
             stderr = (stderr_chunks[0] if stderr_chunks else "").strip()
             # ``timed_out`` is only set when the watchdog killed a still-running
             # process (see _on_timeout), so a set flag reliably means a genuine
