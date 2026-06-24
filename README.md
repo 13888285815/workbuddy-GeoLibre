@@ -84,7 +84,27 @@ GeoLibre is built with **Tauri v2**, **React**, **TypeScript**, **MapLibre GL JS
 - Accessibility pass with axe-checked screens, keyboard navigation, and screen-reader labels
 - App-wide, section, and plugin React error boundaries that contain failures and keep the rest of the workspace usable
 - Python package (`geolibre`) that embeds the full app in Jupyter notebooks as an [anywidget](https://anywidget.dev), with an expanded leafmap-style API (local raster, marker/cluster, and choropleth layers; `split_map`, `add_legend`, and `add_colorbar` helpers; typed read-back of selected/drawn features; and `to_html` export) and two-way project sync
+- **🌐 Web UI support** - Standalone web application with FastAPI backend, no Jupyter required! See [Web UI Guide](README_WEB.md)
 - Optional Python FastAPI sidecar for heavier processing workflows
+
+## 🌐 Web UI Quick Start
+
+GeoLibre now supports standalone web UI access without Jupyter:
+
+```bash
+# Quick start with startup script
+chmod +x start_web.sh
+./start_web.sh
+
+# Or manual start
+cd python
+pip install fastapi uvicorn python-multipart
+python -m geolibre.web_app
+```
+
+Then open http://localhost:8000 in your browser.
+
+For detailed instructions, see [Web UI Guide](README_WEB.md).
 
 ## Prerequisites
 

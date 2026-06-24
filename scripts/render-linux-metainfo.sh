@@ -20,7 +20,15 @@ set -euo pipefail
 [[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "DATE must be YYYY-MM-DD" >&2; exit 1; }
 # Reject syntactically valid but impossible dates (e.g. 2026-13-40). `date -d`
 # is GNU coreutils; these scripts run on Linux/CI (on macOS, use coreutils).
-date -u -d "$DATE" +%F >/dev/null 2>&1 || { echo "DATE is not a valid calendar date" >&2; exit 1; }
+# Try GNU date first, then BSD date (macOS).
+if command -v gdate &>/dev/null; then
+  gdate -u -d "$DATE" +%F >/dev/null 2>&1 || { echo "DATE is not a valid calendar date" >&2; exit 1; }
+elif date -u -j -f "%Y-%m-%d" "$DATE" >/dev/null 2>&1; then
+  # BSD date (macOS) - already validated
+  :
+else
+  date -u -d "$DATE" +%F >/dev/null 2>&1 || { echo "DATE is not a valid calendar date" >&2; exit 1; }
+fi
 
 cat <<XML
 <?xml version="1.0" encoding="UTF-8"?>

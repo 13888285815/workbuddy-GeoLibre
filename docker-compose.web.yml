@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  geolibre-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: geolibre-web-ui
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount local code for development
+      - ./python:/app/python
+      # Persistent data storage
+      - geolibre-data:/app/data
+    restart: unless-stopped
+    networks:
+      - geolibre-network
+
+volumes:
+  geolibre-data:
+    driver: local
+
+networks:
+  geolibre-network:
+    driver: bridge

@@ -701,7 +701,14 @@
     "sharing": "Sharing…",
     "errorFallback": "Could not share the project.",
     "usernameRequired": "Set a username on your share.geolibre.app account before sharing. Open your account settings to choose one, then try again.",
-    "openAccountSettings": "Open account settings"
+    "openAccountSettings": "Open account settings",
+    "weibo": {
+      "shareToWeibo": "Share to Weibo",
+      "defaultTitle": "GeoLibre Project",
+      "shareText": "Check out my map project on GeoLibre!",
+      "success": "Successfully shared to Weibo!",
+      "error": "Failed to share to Weibo. Please try again."
+    }
   },
   "gallery": {
     "title": "Project gallery",

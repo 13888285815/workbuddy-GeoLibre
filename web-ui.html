@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoLibre Web UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+            max-width: 1500px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 40%, #4a9eff 100%);
+            color: white;
+            padding: 24px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 { font-size: 1.8em; letter-spacing: -0.5px; }
+        .header h1 small { font-size: 0.45em; opacity: 0.7; font-weight: 400; margin-left: 8px; }
+        .header .status-badge {
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.15); padding: 8px 16px;
+            border-radius: 20px; font-size: 0.85em;
+        }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;
+        }
+        .status-dot.online { background: #22c55e; animation: pulse 2s infinite; }
+        .status-dot.offline { background: #ef4444; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .split {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            min-height: 650px;
+        }
+
+        .sidebar {
+            background: #f8fafc; padding: 20px;
+            border-right: 1px solid #e2e8f0;
+            overflow-y: auto; max-height: 650px;
+        }
+
+        .sidebar h2 {
+            font-size: 1.1em; color: #1e293b;
+            margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+        }
+
+        .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+        .tab {
+            flex: 1; padding: 8px; background: #e2e8f0;
+            border: none; border-radius: 8px; font-size: 0.85em;
+            font-weight: 600; cursor: pointer; color: #64748b;
+            transition: all 0.2s;
+        }
+        .tab:hover { background: #cbd5e1; }
+        .tab.active { background: #3b82f6; color: white; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .ctrl { margin-bottom: 14px; }
+        .ctrl label {
+            display: block; margin-bottom: 5px; font-weight: 600;
+            color: #475569; font-size: 0.82em;
+            text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .ctrl input, .ctrl select, .ctrl textarea {
+            width: 100%; padding: 9px 12px;
+            border: 2px solid #e2e8f0; border-radius: 8px;
+            font-size: 0.9em; transition: border-color 0.2s; background: white;
+        }
+        .ctrl input:focus, .ctrl select:focus, .ctrl textarea:focus {
+            outline: none; border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+        .ctrl textarea {
+            min-height: 90px; font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.82em;
+        }
+
+        .btn {
+            width: 100%; padding: 10px; border: none; border-radius: 8px;
+            font-size: 0.9em; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; margin-top: 6px;
+        }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
+        .btn-success { background: #22c55e; color: white; }
+        .btn-success:hover { background: #16a34a; transform: translateY(-1px); }
+        .btn-info { background: #06b6d4; color: white; }
+        .btn-info:hover { background: #0891b2; transform: translateY(-1px); }
+        .btn-danger { background: #ef4444; color: white; padding: 4px 10px; font-size: 0.78em; width: auto; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-outline { background: transparent; color: #64748b; border: 2px solid #e2e8f0; }
+        .btn-outline:hover { background: #f1f5f9; }
+
+        .msg {
+            margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+            font-size: 0.82em; display: none; line-height: 1.4;
+        }
+        .msg.success { display: block; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .msg.error { display: block; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+        .layer-list { margin-top: 16px; }
+        .layer-list h3 { font-size: 0.85em; color: #64748b; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+        .layer-item {
+            background: white; padding: 8px 12px; margin-bottom: 6px;
+            border-radius: 6px; border-left: 3px solid #3b82f6;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.85em; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .layer-item .tag { font-size: 0.72em; background: #dbeafe; color: #1d4ed8; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+        .layer-empty { text-align: center; color: #94a3b8; padding: 20px; font-size: 0.85em; }
+
+        .map-area { position: relative; }
+        #map { width: 100%; height: 650px; z-index: 1; }
+        .map-coords {
+            position: absolute; bottom: 10px; left: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.9); padding: 4px 10px; border-radius: 6px;
+            font-size: 0.78em; font-family: monospace; color: #475569;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+
+        .footer {
+            background: #f8fafc; padding: 10px 24px;
+            border-top: 1px solid #e2e8f0;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.8em; color: #64748b;
+        }
+        .footer .stat { display: flex; align-items: center; gap: 6px; }
+
+        @media (max-width: 768px) {
+            body { padding: 0; }
+            .container { border-radius: 0; }
+            .split { grid-template-columns: 1fr; }
+            .sidebar { max-height: 350px; border-right: none; border-bottom: 1px solid #e2e8f0; }
+            #map { height: 400px; }
+            .header { flex-direction: column; gap: 10px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌍 GeoLibre <small>Web UI</small></h1>
+            <div class="status-badge">
+                <span class="status-dot" id="statusDot"></span>
+                <span>API: <strong id="apiStatusLabel">检测中...</strong></span>
+            </div>
+        </div>
+
+        <div class="split">
+            <div class="sidebar">
+                <h2>🎛️ 控制面板</h2>
+
+                <div class="tabs">
+                    <button class="tab active" data-tab="geojson" onclick="switchTab('geojson')">GeoJSON</button>
+                    <button class="tab" data-tab="tile" onclick="switchTab('tile')">瓦片</button>
+                    <button class="tab" data-tab="config" onclick="switchTab('config')">配置</button>
+                </div>
+
+                <div id="tab-geojson" class="tab-content active">
+                    <div class="ctrl">
+                        <label>图层名称</label>
+                        <input type="text" id="gj-name" placeholder="我的图层" value="标记点">
+                    </div>
+                    <div class="ctrl">
+                        <label>GeoJSON 数据</label>
+                        <textarea id="gj-data" placeholder='{"type":"Feature","geometry":{"type":"Point","coordinates":[116.4,39.9]},"properties":{"name":"北京"}}'>{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[116.4,39.9]},"properties":{"name":"北京","pop":2154}},{"type":"Feature","geometry":{"type":"Point","coordinates":[121.47,31.23]},"properties":{"name":"上海","pop":2475}},{"type":"Feature","geometry":{"type":"Point","coordinates":[113.27,23.13]},"properties":{"name":"广州","pop":1868}}]}</textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="addGeoJSON()">➕ 添加 GeoJSON</button>
+                </div>
+
+                <div id="tab-tile" class="tab-content">
+                    <div class="ctrl">
+                        <label>图层名称</label>
+                        <input type="text" id="tile-name" value="OpenStreetMap">
+                    </div>
+                    <div class="ctrl">
+                        <label>瓦片 URL 模板</label>
+                        <input type="text" id="tile-url" value="https://tile.openstreetmap.org/{z}/{x}/{y}.png">
+                    </div>
+                    <div class="ctrl">
+                        <label>归属信息</label>
+                        <input type="text" id="tile-attr" value="© OpenStreetMap contributors">
+                    </div>
+                    <button class="btn btn-primary" onclick="addTile()">🗺️ 添加瓦片图层</button>
+                </div>
+
+                <div id="tab-config" class="tab-content">
+                    <div class="ctrl">
+                        <label>地图中心 (经度, 纬度)</label>
+                        <input type="text" id="map-center" value="105, 35">
+                    </div>
+                    <div class="ctrl">
+                        <label>缩放级别</label>
+                        <input type="number" id="map-zoom" value="4" min="1" max="20">
+                    </div>
+                    <button class="btn btn-info" onclick="flyTo()">🔄 飞往</button>
+                    <button class="btn btn-success" onclick="saveProject()">💾 保存项目</button>
+                    <button class="btn btn-outline" onclick="loadProject()">📂 加载项目</button>
+                    <button class="btn btn-outline" onclick="clearAllLayers()" style="margin-top:4px;color:#ef4444;">🗑️ 清除所有图层</button>
+                </div>
+
+                <div id="msgBox" class="msg"></div>
+
+                <div class="layer-list">
+                    <h3>📋 图层列表 (<span id="layerCount">0</span>)</h3>
+                    <div id="layerItems"></div>
+                </div>
+            </div>
+
+            <div class="map-area">
+                <div id="map"></div>
+                <div class="map-coords" id="coords">经度: — &nbsp; 纬度: —</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="stat">📍 <span id="footerCenter">中国 (35, 105)</span></div>
+            <div class="stat">🔍 <span id="footerZoom">缩放: 4</span></div>
+            <div class="stat">📦 <span id="footerLayers">图层: 0</span></div>
+        </div>
+    </div>
+
+    <script>
+        const API = window.location.origin + '/api';
+        const map = L.map('map', { center: [35, 105], zoom: 4, zoomControl: true, attributionControl: true });
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 19,
+        }).addTo(map);
+
+        let layers = [];
+        let layerIdCounter = 0;
+
+        map.on('mousemove', (e) => {
+            document.getElementById('coords').textContent =
+                `经度: ${e.latlng.lng.toFixed(4)} 纬度: ${e.latlng.lat.toFixed(4)}`;
+        });
+        map.on('moveend', () => {
+            const c = map.getCenter();
+            document.getElementById('footerCenter').textContent = `${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}`;
+            document.getElementById('footerZoom').textContent = `缩放: ${map.getZoom()}`;
+            document.getElementById('map-center').value = `${c.lng.toFixed(4)}, ${c.lat.toFixed(4)}`;
+            document.getElementById('map-zoom').value = map.getZoom();
+        });
+
+        async function checkAPI() {
+            const dot = document.getElementById('statusDot');
+            const label = document.getElementById('apiStatusLabel');
+            try {
+                const r = await fetch(`${API}/health`);
+                if (r.ok) { dot.className = 'status-dot online'; label.textContent = '已连接 ✅'; }
+                else throw new Error('not ok');
+            } catch { dot.className = 'status-dot offline'; label.textContent = '离线 ❌'; }
+        }
+        checkAPI();
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${name}"]`).classList.add('active');
+            document.getElementById(`tab-${name}`).classList.add('active');
+        }
+        window.switchTab = switchTab;
+
+        function showMsg(text, type = 'success') {
+            const box = document.getElementById('msgBox');
+            box.textContent = text; box.className = `msg ${type}`;
+            clearTimeout(box._timer);
+            box._timer = setTimeout(() => { box.className = 'msg'; }, 4000);
+        }
+
+        function renderLayers() {
+            const container = document.getElementById('layerItems');
+            document.getElementById('layerCount').textContent = layers.length;
+            document.getElementById('footerLayers').textContent = `图层: ${layers.length}`;
+            if (layers.length === 0) { container.innerHTML = '<div class="layer-empty">暂无图层，在左侧添加</div>'; return; }
+            container.innerHTML = layers.map((l, i) => {
+                const typeName = l.type === 'geojson' ? 'GeoJSON' : '瓦片';
+                return `<div class="layer-item"><span>${l.type === 'geojson' ? '📍' : '🗺️'} ${l.name} <span class="tag">${typeName}</span></span><button class="btn btn-danger" onclick="removeLayer(${i})">删除</button></div>`;
+            }).join('');
+        }
+
+        async function addGeoJSON() {
+            const name = document.getElementById('gj-name').value || 'GeoJSON图层';
+            const dataStr = document.getElementById('gj-data').value.trim();
+            if (!dataStr) { showMsg('请输入 GeoJSON 数据', 'error'); return; }
+            let data;
+            try { data = JSON.parse(dataStr); } catch (e) { showMsg('JSON 格式错误: ' + e.message, 'error'); return; }
+
+            // Try backend
+            fetch(`${API}/layers/geojson`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, data }),
+            }).catch(() => {});
+
+            // Add to map
+            const leafletLayer = L.geoJSON(data, {
+                style: { color: '#3b82f6', weight: 2, fillOpacity: 0.15 },
+                pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 8, fillColor: '#3b82f6', color: '#1e40af', weight: 2, fillOpacity: 0.7 }),
+                onEachFeature: (f, layer) => {
+                    if (f.properties) layer.bindPopup(Object.entries(f.properties).map(([k, v]) => `<b>${k}</b>: ${v}`).join('<br>'));
+                },
+            }).addTo(map);
+            map.fitBounds(leafletLayer.getBounds(), { padding: [30, 30] });
+
+            layers.push({ id: `geojson_${layerIdCounter++}`, name, type: 'geojson', leafletLayer });
+            renderLayers();
+            showMsg(`✅ 图层 "${name}" 添加成功`);
+            document.getElementById('gj-name').value = '';
+            document.getElementById('gj-data').value = '';
+        }
+        window.addGeoJSON = addGeoJSON;
+
+        async function addTile() {
+            const name = document.getElementById('tile-name').value || '瓦片图层';
+            const url = document.getElementById('tile-url').value.trim();
+            if (!url) { showMsg('请输入瓦片 URL', 'error'); return; }
+            const attr = document.getElementById('tile-attr').value || '';
+
+            fetch(`${API}/layers/tile`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, url, attribution: attr }),
+            }).catch(() => {});
+
+            const leafletLayer = L.tileLayer(url, { attribution: attr || undefined, maxZoom: 19 }).addTo(map);
+            layers.push({ id: `tile_${layerIdCounter++}`, name, type: 'tile', leafletLayer });
+            renderLayers();
+            showMsg(`✅ 瓦片图层 "${name}" 添加成功`);
+            document.getElementById('tile-name').value = '';
+            document.getElementById('tile-url').value = '';
+            document.getElementById('tile-attr').value = '';
+        }
+        window.addTile = addTile;
+
+        function removeLayer(index) {
+            const layer = layers[index];
+            if (!layer) return;
+            if (layer.leafletLayer) map.removeLayer(layer.leafletLayer);
+            if (layer.id && !layer.id.includes('_')) {
+                fetch(`${API}/layers/${layer.id}`, { method: 'DELETE' }).catch(() => {});
+            }
+            layers.splice(index, 1);
+            renderLayers();
+            showMsg(`🗑️ 图层 "${layer.name}" 已删除`);
+        }
+        window.removeLayer = removeLayer;
+
+        function clearAllLayers() {
+            if (layers.length === 0) { showMsg('没有图层可清除', 'error'); return; }
+            if (!confirm('确定要清除所有图层吗？')) return;
+            layers.forEach(l => { if (l.leafletLayer) map.removeLayer(l.leafletLayer); });
+            layers = [];
+            renderLayers();
+            showMsg('✅ 所有图层已清除');
+        }
+        window.clearAllLayers = clearAllLayers;
+
+        function flyTo() {
+            const val = document.getElementById('map-center').value.split(',').map(s => parseFloat(s.trim()));
+            const zoom = parseInt(document.getElementById('map-zoom').value) || 4;
+            if (val.length >= 2 && !isNaN(val[0]) && !isNaN(val[1])) {
+                map.flyTo([val[1], val[0]], zoom);
+                showMsg(`📍 飞往 [${val[0]}, ${val[1]}], 缩放 ${zoom}`);
+            } else { showMsg('请输入有效坐标 (经度, 纬度)', 'error'); }
+        }
+        window.flyTo = flyTo;
+
+        async function saveProject() {
+            try {
+                const r = await fetch(`${API}/project`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project: { layers: layers.map(l => ({ id: l.id, name: l.name, type: l.type })), center: [map.getCenter().lat, map.getCenter().lng], zoom: map.getZoom() } }),
+                });
+                const result = await r.json();
+                if (result.status === 'success') showMsg('✅ 项目已保存 (' + result.layers + ' 个图层)');
+                else showMsg('保存失败', 'error');
+            } catch (e) { showMsg('保存失败: ' + e.message, 'error'); }
+        }
+        window.saveProject = saveProject;
+
+        async function loadProject() {
+            try {
+                const r = await fetch(`${API}/project`);
+                const project = await r.json();
+                if (project.layers?.length) showMsg(`📂 加载了 ${project.layers.length} 个图层`, 'success');
+                else showMsg('服务器上没有保存的项目', 'error');
+            } catch (e) { showMsg('加载失败: ' + e.message, 'error'); }
+        }
+        window.loadProject = loadProject;
+
+        renderLayers();
+    </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ import {
   Select,
 } from "@geolibre/ui";
 import { Check, Copy, ExternalLink, KeyRound, Loader2, Share2 } from "lucide-react";
+import { ShareToWeiboButton } from "./ShareToWeiboButton";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDesktopSettingsStore } from "../../hooks/useDesktopSettings";
@@ -219,6 +220,10 @@ export function ShareProjectDialog({
                 )}
               </Button>
             </div>
+            <ShareToWeiboButton 
+              projectUrl={result.projectUrl}
+              projectTitle={title}
+            />
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
