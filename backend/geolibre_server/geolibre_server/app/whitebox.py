@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import logging
 import os
@@ -67,10 +68,8 @@ def _try_kill(process: subprocess.Popen) -> None:
     some platforms when the child is already gone. Swallowing it keeps the
     watchdog Timer callback from leaking an unhandled traceback to stderr.
     """
-    try:
+    with contextlib.suppress(OSError):
         process.kill()
-    except OSError:
-        pass
 
 
 class WhiteboxRunRequest(BaseModel):
@@ -379,21 +378,34 @@ class ExternalRuntimeSession:
             bufsize=1,
             **_subprocess_startup_kwargs(),
         )
+
+        def _on_timeout() -> None:
+            timed_out.set()
+            _try_kill(process)
+
+        # Drain stderr in a background thread: a subprocess that fills the
+        # stderr pipe buffer (~64 KB on Linux) while we are blocked reading
+        # stdout would otherwise deadlock both ends until the watchdog fires.
+        stderr_chunks: list[str] = []
+
+        def _drain_stderr() -> None:
+            if process.stderr is not None:
+                stderr_chunks.append(process.stderr.read())
+
         try:
             if process.stdout is None:
                 raise RuntimeBootstrapError(
                     "Whitebox subprocess stdout is unexpectedly None"
                 )
+            stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+            stderr_thread.start()
             # A watchdog kills the subprocess if it exceeds the deadline.
             # ``for line in process.stdout`` blocks until the pipe closes, so a
             # Whitebox tool that hangs without emitting further output would
             # otherwise tie up this worker thread (and leak a child process)
             # indefinitely; process.wait()'s own timeout cannot fire because the
             # loop has already drained stdout.
-            watchdog = threading.Timer(
-                timeout,
-                lambda: (timed_out.set(), _try_kill(process)),
-            )
+            watchdog = threading.Timer(timeout, _on_timeout)
             watchdog.daemon = True
             watchdog.start()
             try:
@@ -416,10 +428,11 @@ class ExternalRuntimeSession:
                                 line[len("__WBW_ERROR__") :]
                             ).decode("utf-8", "replace")
                         )
-                stderr = process.stderr.read().strip() if process.stderr else ""
                 rc = process.wait()
             finally:
                 watchdog.cancel()
+            stderr_thread.join(timeout=5)
+            stderr = (stderr_chunks[0] if stderr_chunks else "").strip()
             # Guard against the narrow race where the watchdog fires between
             # process.wait() returning cleanly and watchdog.cancel(): a job that
             # completed successfully always exits with rc == 0, so only treat a

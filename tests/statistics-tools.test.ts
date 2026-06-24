@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEFAULT_LAYER_STYLE, type GeoLibreLayer } from "@geolibre/core";
 import {
+  type ProcessingAlgorithm,
   STATISTICS_TOOLS,
   averageNearestNeighborTool,
   getStatisticsTool,
@@ -42,7 +43,7 @@ interface RunOutcome {
 
 /** Run a statistics tool against a single layer, capturing logs and outputs. */
 function run(
-  tool: typeof globalMoransITool,
+  tool: ProcessingAlgorithm,
   layer: GeoLibreLayer,
   parameters: Record<string, unknown>,
 ): RunOutcome {
@@ -76,7 +77,8 @@ function gradientLine(values: number[]): GeoLibreLayer {
 
 describe("statistics tools registry", () => {
   it("exposes all five spatial-statistics tools", () => {
-    assert.equal(STATISTICS_TOOLS.length, 5);
+    // The sorted-id comparison below fully pins membership; no separate
+    // (fragile) length assertion is needed.
     assert.deepEqual(
       STATISTICS_TOOLS.map((t) => t.id).sort(),
       [

@@ -26,6 +26,9 @@ def test_run_timeout_defaults_to_one_hour(monkeypatch):
     monkeypatch.setenv("GEOLIBRE_WHITEBOX_RUN_TIMEOUT_SECS", "0")
     assert whitebox._whitebox_run_timeout_secs() == 3600
 
+    monkeypatch.setenv("GEOLIBRE_WHITEBOX_RUN_TIMEOUT_SECS", "-1")
+    assert whitebox._whitebox_run_timeout_secs() == 3600
+
 
 def test_run_timeout_reads_positive_override(monkeypatch):
     """A positive override is honoured so long jobs can be tuned per deployment."""
