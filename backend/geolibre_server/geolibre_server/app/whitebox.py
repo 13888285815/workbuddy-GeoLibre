@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import tempfile
 import threading
-import traceback
 import uuid
 from pathlib import Path
 from typing import Any, Callable
@@ -439,8 +438,13 @@ class ExternalRuntimeSession:
         finally:
             # Guard against leaking a still-running subprocess if an exception
             # is raised before it exits (e.g. a callback error mid-stream).
+            # Reap the child after killing so it doesn't linger as a zombie.
             if process.poll() is None:
                 _try_kill(process)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
 
 
 def create_runtime_session(include_pro: bool = False, tier: str = "open"):
@@ -814,17 +818,17 @@ def _run_job(job_id: str, request: WhiteboxRunRequest) -> None:
             result=result,
             outputs=_extract_outputs(result, args, request.tool),
         )
-    except Exception as exc:
-        with _JOBS_LOCK:
-            current_messages = list(_JOBS[job_id].messages)
+    except Exception:
+        # The exception (a RuntimeBootstrapError) carries the subprocess's full
+        # traceback and interpreter path; log it server-side and surface only a
+        # generic message so /run and /jobs/{id} don't leak internals to clients
+        # (the sidecar is proxied to the browser build). Streamed progress
+        # messages are preserved untouched. Matches /status, /tools, /tools/{id}.
+        logger.warning("Whitebox job %s failed", job_id, exc_info=True)
         _job_update(
             job_id,
             status="failed",
-            error=str(exc),
-            messages=[
-                *current_messages,
-                traceback.format_exc(limit=8),
-            ],
+            error="Tool execution failed. See the sidecar logs for details.",
         )
     finally:
         for path in temp_paths:

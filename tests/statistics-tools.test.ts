@@ -101,9 +101,10 @@ describe("global Moran's I", () => {
     const layer = gradientLine([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     const { messages } = run(globalMoransITool, layer, { k: 2, permutations: 99 });
     const observed = loggedNumber(messages, "Moran's I:");
-    // Neighbors share near-identical values, so I should be close to 1.
+    // Neighbors share near-identical values, so I should be close to 1. The
+    // observed statistic is deterministic; the pattern label depends on the
+    // permutation p-value, so it is intentionally not asserted here.
     assert.ok(observed > 0.5, `expected I > 0.5, got ${observed}`);
-    assert.ok(messages.some((m) => m.includes("clustered")));
   });
 
   it("reports negative autocorrelation for an alternating field", () => {
@@ -175,8 +176,14 @@ describe("local Moran's I (LISA)", () => {
     const { results } = run(localMoransITool, layer, { k: 2, permutations: 99 });
     assert.equal(results.length, 1);
     const features = results[0].geojson.features;
+    // Select the high-value members by attribute rather than position, so the
+    // assertion holds even if the tool ever reorders output features.
+    const highFeatures = features.filter(
+      (f) => (f.properties?.["v"] as number) > 50,
+    );
+    assert.equal(highFeatures.length, 3);
     // High-cluster members have a positive local I and sit in quadrant 1.
-    for (const f of features.slice(0, 3)) {
+    for (const f of highFeatures) {
       assert.equal(f.properties?.["v_lisa_q"], 1);
       assert.ok((f.properties?.["v_lisa_I"] as number) > 0);
     }
@@ -244,9 +251,10 @@ describe("kernel density", () => {
     assert.ok(cells.length > 0);
     const norms = cells.map((f) => f.properties?.["density_norm"] as number);
     assert.ok(norms.every((value) => value > 0 && value <= 1));
+    const maxNorm = Math.max(...norms);
     assert.ok(
-      Math.max(...norms) === 1,
-      "the densest cell should normalize to exactly 1",
+      Math.abs(maxNorm - 1) < 1e-9,
+      `the densest cell should normalize to 1 (got ${maxNorm})`,
     );
   });
 
