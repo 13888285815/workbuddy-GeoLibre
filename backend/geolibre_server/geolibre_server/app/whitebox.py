@@ -61,6 +61,19 @@ def _whitebox_run_timeout_secs() -> int:
     return 3600
 
 
+def _try_kill(process: subprocess.Popen) -> None:
+    """Kill a subprocess, ignoring the error if it has already exited.
+
+    ``Popen.kill`` raises ``ProcessLookupError`` (a subclass of ``OSError``) on
+    some platforms when the child is already gone. Swallowing it keeps the
+    watchdog Timer callback from leaking an unhandled traceback to stderr.
+    """
+    try:
+        process.kill()
+    except OSError:
+        pass
+
+
 class WhiteboxRunRequest(BaseModel):
     """Request body for a Whitebox tool run."""
 
@@ -380,7 +393,7 @@ class ExternalRuntimeSession:
             # loop has already drained stdout.
             watchdog = threading.Timer(
                 timeout,
-                lambda: (timed_out.set(), process.kill()),
+                lambda: (timed_out.set(), _try_kill(process)),
             )
             watchdog.daemon = True
             watchdog.start()
@@ -408,7 +421,11 @@ class ExternalRuntimeSession:
                 rc = process.wait()
             finally:
                 watchdog.cancel()
-            if timed_out.is_set():
+            # Guard against the narrow race where the watchdog fires between
+            # process.wait() returning cleanly and watchdog.cancel(): a job that
+            # completed successfully always exits with rc == 0, so only treat a
+            # set flag as a real timeout when the process was actually killed.
+            if timed_out.is_set() and rc != 0:
                 raise RuntimeBootstrapError(
                     f"Whitebox tool run timed out after {timeout} seconds"
                 )
@@ -423,7 +440,7 @@ class ExternalRuntimeSession:
             # Guard against leaking a still-running subprocess if an exception
             # is raised before it exits (e.g. a callback error mid-stream).
             if process.poll() is None:
-                process.kill()
+                _try_kill(process)
 
 
 def create_runtime_session(include_pro: bool = False, tier: str = "open"):
