@@ -836,7 +836,7 @@ async function initTree() {
 function initMap() {
   const defaultBasemap = state.basemaps && state.basemaps.length > 0 
     ? state.basemaps[0] 
-    : { name: 'CartoDB', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', type: 'xyz' };
+    : { name: 'OpenStreetMap-标准', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', type: 'xyz', attribution: '&copy; OpenStreetMap contributors' };
 
   const mapStyle = createMapStyle(defaultBasemap);
 
