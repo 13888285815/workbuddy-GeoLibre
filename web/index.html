@@ -921,7 +921,6 @@ async function initMap() {
     state.map.on('zoomend', updateMapInfo);
     state.map.on('load', () => {
       updateMapInfo();
-      showToast(`地图加载完成 (${fastestBasemap.name})`, 'success');
     });
 
     state.map.on('error', (e) => {
@@ -1384,21 +1383,42 @@ function removeLayer(index) {
   const layer = state.layers[index];
   if (!layer) return;
   
-  if (confirm(`确定要删除图层 "${layer.name}" 吗？`)) {
-    state.map.removeLayer(layer.id);
-    state.map.removeSource(layer.id);
-    state.layers.splice(index, 1);
-    
-    showToast(`已删除图层: ${layer.name}`, 'success');
-    document.getElementById('layerList').innerHTML = renderLayerList();
-  }
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal" style="max-width: 380px;">
+      <div class="modal-header">
+        <h3>确认删除</h3>
+        <button class="close-btn" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="color: #a2b0d9; margin-bottom: 20px;">确定要删除图层 "<strong style="color:#fff">${layer.name}</strong>" 吗？此操作不可撤销。</p>
+        <div class="modal-btns">
+          <button class="mbtn mbtn-cancel" onclick="this.closest('.modal-overlay').remove()">取消</button>
+          <button class="mbtn mbtn-ok" onclick="confirmRemoveLayer(${index})">删除</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function confirmRemoveLayer(index) {
+  const layer = state.layers[index];
+  if (!layer) return;
+  
+  state.map.removeLayer(layer.id);
+  state.map.removeSource(layer.id);
+  state.layers.splice(index, 1);
+  
+  showToast(`已删除图层: ${layer.name}`, 'success');
+  document.querySelector('.modal-overlay')?.remove();
+  document.getElementById('layerList')?.innerHTML = renderLayerList();
 }
 
 // ============ 快速检索功能 ============
 async function searchLocation(query) {
   if (!query.trim()) return;
-  
-  showToast('正在搜索...', 'info');
   
   try {
     // 尝试解析为坐标
@@ -1457,14 +1477,26 @@ async function searchLocation(query) {
       console.warn('GeoNames搜索失败:', e);
     }
     
-    // 方法3: 使用百度地图API（中文地名最准确）
+    // 方法3: 使用OpenStreetMap搜索（备选）
     try {
-      const baiduRes = await fetch(
-        `https://api.map.baidu.com/geocoding/v3/?address=${encodeURIComponent(query)}&output=json&ak=YOUR_BAIDU_API_KEY`,
-        { mode: 'no-cors' }
+      const osmRes = await fetch(
+        `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=zh`,
+        { mode: 'cors' }
       );
+      if (osmRes.ok) {
+        const osmData = await osmRes.json();
+        if (osmData.features) {
+          searchResults.push(...osmData.features.map(f => ({
+            lon: f.geometry.coordinates[0],
+            lat: f.geometry.coordinates[1],
+            display_name: f.properties.name + (f.properties.city ? ', ' + f.properties.city : '') + (f.properties.country ? ', ' + f.properties.country : ''),
+            source: 'Photon',
+            display: f.properties.name || f.properties.osm_key || '地点'
+          })));
+        }
+      }
     } catch (e) {
-      console.warn('百度地图搜索失败:', e);
+      console.warn('Photon搜索失败:', e);
     }
     
     if (searchResults.length === 0) {
@@ -1588,51 +1620,73 @@ function handleKeyboard(e) {
 }
 
 function filterTree(keyword) {
-  const nodes = document.querySelectorAll('.tree-node');
-  nodes.forEach(node => {
-    const name = node.querySelector('.tree-name').textContent;
-    if (keyword && !name.toLowerCase().includes(keyword.toLowerCase())) {
-      node.style.display = 'none';
-    } else {
-      node.style.display = 'block';
-    }
-  });
-}
-
-function searchLocation(query) {
-  if (!query) return;
-  // 使用Nominatim搜索
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
-    .then(r => r.json())
-    .then(data => {
-      if (data.length > 0) {
-        const result = data[0];
-        state.map.flyTo({
-          center: [parseFloat(result.lon), parseFloat(result.lat)],
-          zoom: 12
+  const lowerKeyword = keyword.toLowerCase().trim();
+  
+  if (!lowerKeyword) {
+    treeCache.visibleItems = flattenTree(treeCache.data);
+    renderVirtualTree();
+    return;
+  }
+  
+  function filterRecursive(data, parentPath = []) {
+    const result = [];
+    data.forEach((node, index) => {
+      const currentPath = [...parentPath, index];
+      const pathKey = currentPath.join('.');
+      const isExpanded = treeCache.expanded.has(pathKey);
+      
+      const matches = node.label.toLowerCase().includes(lowerKeyword) ||
+                      (node.description && node.description.toLowerCase().includes(lowerKeyword));
+      
+      if (matches) {
+        result.push({
+          ...node,
+          level: parentPath.length,
+          isExpanded: false,
+          hasChildren: node.children && node.children.length > 0,
+          pathKey: pathKey,
+          matched: true
         });
-        showToast('定位到: ' + result.display_name, 'success');
-      } else {
-        showToast('未找到位置', 'error');
+      } else if (node.children && node.children.length > 0) {
+        const filteredChildren = filterRecursive(node.children, currentPath);
+        if (filteredChildren.length > 0) {
+          result.push({
+            ...node,
+            level: parentPath.length,
+            isExpanded: true,
+            hasChildren: true,
+            pathKey: pathKey,
+            children: filteredChildren
+          });
+          result.push(...filteredChildren);
+        }
       }
-    })
-    .catch(err => showToast('搜索失败', 'error'));
+    });
+    return result;
+  }
+  
+  treeCache.visibleItems = filterRecursive(treeCache.data);
+  renderVirtualTree();
 }
 
 // ============ API检测 ============
 function checkAPI() {
   const dot = document.getElementById('statusDot');
   const status = document.getElementById('apiStatus');
-  fetch(CONFIG.apiBase + '/health')
-    .then(r => r.json())
-    .then(data => {
-      dot.classList.remove('offline');
-      status.textContent = '在线';
-    })
-    .catch(err => {
-      dot.classList.add('offline');
-      status.textContent = '离线';
-    });
+  if (state.map && state.map.isStyleLoaded()) {
+    dot.classList.remove('offline');
+    status.textContent = '在线';
+  } else {
+    setTimeout(() => {
+      if (state.map && state.map.isStyleLoaded()) {
+        dot.classList.remove('offline');
+        status.textContent = '在线';
+      } else {
+        dot.classList.add('offline');
+        status.textContent = '离线';
+      }
+    }, 3000);
+  }
 }
 
 // ============ Toast提示 ============
