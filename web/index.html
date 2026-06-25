@@ -551,7 +551,6 @@ function toggleTheme() {
 }
 
 // ============ 高性能树形目录初始化 ============
-// 数据缓存
 const treeCache = {
   data: null,
   expanded: new Set(),
@@ -560,11 +559,75 @@ const treeCache = {
   bufferSize: 10
 };
 
+// 存储节点的完整路径索引
+const nodePathMap = new Map();
+
+function buildNodePathMap(data, parentPath = []) {
+  data.forEach((node, index) => {
+    const path = [...parentPath, index];
+    nodePathMap.set(node.id, path);
+    if (node.children) {
+      buildNodePathMap(node.children, path);
+    }
+  });
+}
+
+function isNodeExpanded(nodeId) {
+  const path = nodePathMap.get(nodeId);
+  if (!path) return false;
+  for (let i = 0; i < path.length; i++) {
+    const partialPath = path.slice(0, i + 1).join('.');
+    if (!treeCache.expanded.has(partialPath)) return false;
+  }
+  return true;
+}
+
+function toggleNodeExpanded(nodeId) {
+  const path = nodePathMap.get(nodeId);
+  if (!path) return;
+  
+  const fullPath = path.join('.');
+  if (treeCache.expanded.has(fullPath)) {
+    // 折叠该节点及其所有子节点
+    treeCache.expanded.forEach(key => {
+      if (key.startsWith(fullPath + '.') || key === fullPath) {
+        treeCache.expanded.delete(key);
+      }
+    });
+  } else {
+    // 展开该节点（父节点必须已展开）
+    for (let i = 0; i <= path.length; i++) {
+      const partialPath = path.slice(0, i).join('.');
+      if (partialPath) treeCache.expanded.add(partialPath);
+    }
+  }
+}
+
+function flattenTree(data, parentPath = []) {
+  const result = [];
+  data.forEach((node, index) => {
+    const currentPath = [...parentPath, index];
+    const pathKey = currentPath.join('.');
+    const isExpanded = treeCache.expanded.has(pathKey);
+    
+    result.push({
+      ...node,
+      level: parentPath.length,
+      isExpanded: isExpanded,
+      hasChildren: node.children && node.children.length > 0,
+      pathKey: pathKey
+    });
+    
+    if (isExpanded && node.children) {
+      result.push(...flattenTree(node.children, currentPath));
+    }
+  });
+  return result;
+}
+
 // 异步加载目录数据
 async function loadCatalogData() {
-  // catalog 已经在 loadCatalogConfig 中加载
   if (catalog.length === 0) {
-    // 如果配置加载失败，使用默认数据
     catalog = [
       {
         id: 'basic-map',
@@ -578,23 +641,6 @@ async function loadCatalogData() {
     ];
   }
   return catalog;
-}
-
-// 扁平化树数据用于虚拟滚动
-function flattenTree(data, expanded, parentLevel = 0) {
-  const result = [];
-  data.forEach((node, index) => {
-    result.push({
-      ...node,
-      level: parentLevel,
-      isExpanded: expanded.has(index),
-      hasChildren: node.children && node.children.length > 0
-    });
-    if (expanded.has(index) && node.children) {
-      result.push(...flattenTree(node.children, expanded, parentLevel + 1));
-    }
-  });
-  return result;
 }
 
 // 渲染虚拟滚动列表
@@ -674,15 +720,8 @@ function toggleTreeNode(index, event) {
   const item = treeCache.visibleItems[index];
   if (!item.hasChildren) return;
   
-  const nodeIndex = treeCache.data.findIndex(n => n.label === item.label);
-  
-  if (treeCache.expanded.has(nodeIndex)) {
-    treeCache.expanded.delete(nodeIndex);
-  } else {
-    treeCache.expanded.add(nodeIndex);
-  }
-  
-  treeCache.visibleItems = flattenTree(treeCache.data, treeCache.expanded);
+  toggleNodeExpanded(item.id);
+  treeCache.visibleItems = flattenTree(treeCache.data);
   renderVirtualTree();
 }
 
@@ -814,12 +853,14 @@ function exportMapPNG() {
 // 初始化树形目录
 async function initTree() {
   treeCache.data = await loadCatalogData();
-  treeCache.visibleItems = flattenTree(treeCache.data, treeCache.expanded);
+  nodePathMap.clear();
+  buildNodePathMap(treeCache.data);
+  treeCache.expanded.clear();
+  treeCache.visibleItems = flattenTree(treeCache.data);
   
   document.getElementById('treeCount').textContent = treeCache.data.length + '项';
   renderVirtualTree();
   
-  // 滚动时使用节流渲染
   const container = document.getElementById('treeContainer');
   let ticking = false;
   container.addEventListener('scroll', () => {
@@ -834,13 +875,21 @@ async function initTree() {
 }
 
 // ============ 地图初始化 ============
-function initMap() {
-  const defaultBasemap = state.basemaps && state.basemaps.length > 0 
-    ? state.basemaps[0] 
-    : { name: 'OpenStreetMap-标准', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', type: 'xyz', attribution: '&copy; OpenStreetMap contributors' };
-
-  const mapStyle = createMapStyle(defaultBasemap);
-
+async function initMap() {
+  const basemaps = state.basemaps || [
+    { name: 'OpenStreetMap-标准', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', type: 'xyz', attribution: '&copy; OpenStreetMap contributors' },
+    { name: 'CartoDB-亮色', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', type: 'xyz', attribution: '&copy; CARTO' },
+    { name: 'CartoDB-航海', url: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', type: 'xyz', attribution: '&copy; CARTO' }
+  ];
+  
+  showToast('正在测试最快地图源...', 'info');
+  
+  // 测试最快的地图源
+  const fastestBasemap = await testFastestBasemap(basemaps);
+  console.log('最快地图源:', fastestBasemap.name);
+  
+  const mapStyle = createMapStyle(fastestBasemap);
+  
   try {
     state.map = new maplibregl.Map({
       container: 'map',
@@ -849,7 +898,9 @@ function initMap() {
       zoom: CONFIG.mapZoom,
       minZoom: CONFIG.minZoom,
       maxZoom: CONFIG.maxZoom,
-      crossSourceErrors: true
+      crossSourceErrors: true,
+      maxParallelImageRequests: 16,
+      rasterTileSize: 256
     });
 
     state.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
@@ -866,9 +917,7 @@ function initMap() {
     state.map.on('zoomend', updateMapInfo);
     state.map.on('load', () => {
       updateMapInfo();
-      showToast(`地图加载完成 (${defaultBasemap.name})`, 'success');
-      // 预加载周边瓦片
-      preloadTiles();
+      showToast(`地图加载完成 (${fastestBasemap.name})`, 'success');
     });
 
     state.map.on('error', (e) => {
@@ -882,34 +931,52 @@ function initMap() {
   }
 }
 
-// 预加载瓦片优化性能
-function preloadTiles() {
-  if (!state.map) return;
-  
-  const center = state.map.getCenter();
-  const zoom = state.map.getZoom();
-  const tileCoords = state.map.project(center);
-  const tileX = Math.floor(tileCoords.x / 256);
-  const tileY = Math.floor(tileCoords.y / 256);
-  const z = Math.floor(zoom);
-  
-  // 预加载当前层级周边3x3区域的瓦片
-  const preloadRange = 1;
-  for (let dx = -preloadRange; dx <= preloadRange; dx++) {
-    for (let dy = -preloadRange; dy <= preloadRange; dy++) {
-      const preloadX = tileX + dx;
-      const preloadY = tileY + dy;
-      // 创建隐藏的img标签触发预加载
+// 测试最快的地图源
+async function testFastestBasemap(basemaps) {
+  const testUrl = (basemap) => {
+    return new Promise((resolve) => {
+      const start = Date.now();
       const img = new Image();
-      img.style.display = 'none';
-      img.src = defaultBasemap.url
-        .replace('{z}', z)
-        .replace('{x}', preloadX)
-        .replace('{y}', preloadY);
-      document.body.appendChild(img);
-      setTimeout(() => img.remove(), 5000);
-    }
+      img.crossOrigin = 'anonymous';
+      
+      const url = basemap.url
+        .replace('{z}', '3')
+        .replace('{x}', '4')
+        .replace('{y}', '2')
+        .replace('{quadkey}', 'b2');
+      
+      img.onload = () => {
+        const time = Date.now() - start;
+        resolve({ ...basemap, loadTime: time, success: true });
+      };
+      
+      img.onerror = () => {
+        resolve({ ...basemap, loadTime: Infinity, success: false });
+      };
+      
+      img.timeout = 3000;
+      
+      setTimeout(() => {
+        if (!img.complete) {
+          img.src = '';
+          resolve({ ...basemap, loadTime: Infinity, success: false });
+        }
+      }, 3000);
+      
+      img.src = url;
+    });
+  };
+  
+  const results = await Promise.all(basemaps.slice(0, 5).map(testUrl));
+  const validResults = results.filter(r => r.success);
+  
+  if (validResults.length === 0) {
+    return basemaps[0];
   }
+  
+  return validResults.reduce((fastest, current) => 
+    current.loadTime < fastest.loadTime ? current : fastest
+  );
 }
 
 function createMapStyle(basemap) {
@@ -1183,14 +1250,16 @@ async function searchLocation(query) {
       }
     }
     
-    // 使用多个地图服务进行搜索
     const searchResults = [];
     
     // 方法1: 使用Nominatim（OSM官方）
     try {
       const nominatimRes = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=3&accept-language=zh-CN`,
-        { headers: { 'User-Agent': 'GeoLibre-WebApp/1.0' } }
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=zh-CN`,
+        { 
+          headers: { 'User-Agent': 'GeoLibre-WebApp/1.0' },
+          mode: 'cors'
+        }
       );
       if (nominatimRes.ok) {
         const nominatimData = await nominatimRes.json();
@@ -1204,25 +1273,35 @@ async function searchLocation(query) {
       console.warn('Nominatim搜索失败:', e);
     }
     
-    // 方法2: 使用Photon（第三方OSM搜索）
+    // 方法2: 使用GeoNames（全球地名数据库）
     try {
-      const photonRes = await fetch(
-        `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=3`
+      const geonamesRes = await fetch(
+        `http://api.geonames.org/searchJSON?q=${encodeURIComponent(query)}&maxRows=5&username=demo`
       );
-      if (photonRes.ok) {
-        const photonData = await photonRes.json();
-        if (photonData.features) {
-          searchResults.push(...photonData.features.map(f => ({
-            lon: f.geometry.coordinates[0],
-            lat: f.geometry.coordinates[1],
-            display_name: f.properties.name + (f.properties.state ? ', ' + f.properties.state : ''),
-            source: 'Komoot',
-            display: f.properties.name
+      if (geonamesRes.ok) {
+        const geonamesData = await geonamesRes.json();
+        if (geonamesData.geonames) {
+          searchResults.push(...geonamesData.geonames.map(g => ({
+            lon: g.lng,
+            lat: g.lat,
+            display_name: g.name + (g.adminName1 ? ', ' + g.adminName1 : '') + (g.countryName ? ', ' + g.countryName : ''),
+            source: 'GeoNames',
+            display: g.name
           })));
         }
       }
     } catch (e) {
-      console.warn('Photon搜索失败:', e);
+      console.warn('GeoNames搜索失败:', e);
+    }
+    
+    // 方法3: 使用百度地图API（中文地名最准确）
+    try {
+      const baiduRes = await fetch(
+        `https://api.map.baidu.com/geocoding/v3/?address=${encodeURIComponent(query)}&output=json&ak=YOUR_BAIDU_API_KEY`,
+        { mode: 'no-cors' }
+      );
+    } catch (e) {
+      console.warn('百度地图搜索失败:', e);
     }
     
     if (searchResults.length === 0) {
@@ -1230,7 +1309,6 @@ async function searchLocation(query) {
       return;
     }
     
-    // 显示搜索结果
     showSearchResults(searchResults);
     
   } catch (err) {
