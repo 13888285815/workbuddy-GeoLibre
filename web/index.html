@@ -120,6 +120,9 @@ body{background:#0f1639;color:#e6e8f5}
 
 .tree-name{flex:1;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 .tree-shortcut{font-size:10px;color:#8f98c8;background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;flex-shrink:0}
+.tree-number{font-size:10px;color:#7a89b8;min-width:28px;flex-shrink:0}
+.tree-type{font-size:10px;color:#f59e0b;background:rgba(245,158,11,.15);padding:2px 6px;border-radius:4px;flex-shrink:0}
+.tree-coord{font-size:10px;color:#06b6d4;background:rgba(6,182,212,.15);padding:2px 6px;border-radius:4px;flex-shrink:0;max-width:100px;overflow:hidden;text-overflow:ellipsis}
 .tree-children{display:none;flex-direction:column;position:relative}
 .tree-children.open{display:flex}
 .tree-children::before{content:'';position:absolute;left:20px;top:0;bottom:6px;width:1px;background:rgba(255,255,255,.06)}
@@ -417,9 +420,10 @@ body{background:#0f1639;color:#e6e8f5}
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <h3><i class="fas fa-folder-tree"></i> 功能目录</h3>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
           <span class="count" id="treeCount">0项</span>
           <div class="sidebar-actions">
+            <button class="sidebar-btn" onclick="showTreeDisplaySettings()" title="显示设置"><i class="fas fa-eye"></i></button>
             <button class="sidebar-btn" onclick="expandAll()" title="展开全部"><i class="fas fa-angle-double-down"></i></button>
             <button class="sidebar-btn" onclick="collapseAll()" title="收起全部"><i class="fas fa-angle-double-up"></i></button>
           </div>
@@ -448,7 +452,8 @@ body{background:#0f1639;color:#e6e8f5}
         
         <!-- 定位 -->
         <div class="tool-group">
-          <button class="tbtn" onclick="getLocation()" title="GPS定位"><i class="fas fa-location-crosshairs"></i></button>
+          <button class="tbtn" onclick="getLocation()" title="单次定位"><i class="fas fa-location-dot"></i></button>
+          <button class="tbtn" id="btnGPSTrack" onclick="startGPSTracking()" title="GPS追踪(北斗)"><i class="fas fa-route"></i></button>
           <button class="tbtn" onclick="showLocateModal()" title="坐标定位(G)"><i class="fas fa-crosshairs"></i></button>
           <button class="tbtn" onclick="getLocationInfo()" title="位置信息"><i class="fas fa-info-circle"></i></button>
         </div>
@@ -661,6 +666,44 @@ body{background:#0f1639;color:#e6e8f5}
   </div>
 </div>
 
+<!-- 树形显示设置弹窗 -->
+<div class="modal-overlay" id="treeDisplayModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-eye"></i> 树形显示设置</h3>
+      <button class="modal-close" onclick="closeModal('treeDisplayModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:#9fb4d8;margin-bottom:16px">选择要在功能目录中显示的信息项</p>
+      <div style="display:flex;flex-direction:column;gap:12px" id="treeDisplayOptions">
+        <label class="display-option"><input type="checkbox" id="disp-number" onchange="updateTreeDisplay()"> <span>📝 编号</span></label>
+        <label class="display-option"><input type="checkbox" id="disp-icon" onchange="updateTreeDisplay()"> <span>🎨 图标</span></label>
+        <label class="display-option"><input type="checkbox" id="disp-name" onchange="updateTreeDisplay()"> <span>📋 名称</span></label>
+        <label class="display-option"><input type="checkbox" id="disp-shortcut" onchange="updateTreeDisplay()"> <span>⌨️ 快捷键</span></label>
+        <label class="display-option"><input type="checkbox" id="disp-type" onchange="updateTreeDisplay()"> <span>🏷️ 类型标签</span></label>
+        <label class="display-option"><input type="checkbox" id="disp-coord" onchange="updateTreeDisplay()"> <span>📍 坐标</span></label>
+      </div>
+      <div class="modal-btns" style="margin-top:20px">
+        <button class="modal-btn" onclick="closeModal('treeDisplayModal')">确定</button>
+        <button class="modal-btn secondary" onclick="resetTreeDisplay()">恢复默认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.display-option{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;background:rgba(255,255,255,.03);
+  border-radius:8px;cursor:pointer;transition:background .15s;
+}
+.display-option:hover{background:rgba(124,93,252,.08)}
+.display-option input[type="checkbox"]{
+  width:18px;height:18px;accent-color:var(--accent);
+}
+.display-option span{font-size:14px;color:#eef2ff}
+</style>
+
 <!-- 快捷键提示 -->
 <div class="shortcut-hint" id="shortcutHint">
   <h4>快捷键</h4>
@@ -704,7 +747,25 @@ const state = {
   sidebarOpen: true,
   markers: [],
   searchMarkers: [],
-  filterTimer: null
+  filterTimer: null,
+  
+  // GPS/北斗定位
+  gpsWatch: null,
+  gpsMarker: null,
+  gpsTrack: [],
+  gpsEnabled: false,
+  gpsInfo: null,
+  
+  // 树形显示设置
+  treeDisplay: JSON.parse(localStorage.getItem('geolibre_tree_display') || JSON.stringify({
+    number: true,
+    icon: true,
+    name: true,
+    shortcut: true,
+    type: false,
+    coord: false
+  })),
+  treeNodeCounter: 0
 };
 
 /* =====================================================
@@ -815,6 +876,13 @@ async function detectUserLocation() {
 async function init() {
   try {
     await loadCatalog();
+    
+    // 加载显示设置
+    const savedDisplay = localStorage.getItem('geolibre_tree_display');
+    if (savedDisplay) {
+      state.treeDisplay = JSON.parse(savedDisplay);
+    }
+    resetTreeNodeCounter();
     renderTree(state.catalog);
     document.getElementById('treeCount').textContent = countItems(state.catalog) + '项';
     
@@ -838,6 +906,7 @@ async function init() {
     console.error('初始化失败:', e);
     state.catalog = getDefaultCatalog();
     state.basemaps = getDefaultBasemaps();
+    resetTreeNodeCounter();
     renderTree(state.catalog);
     initMap();
     setTimeout(expandAll, 100);
@@ -897,13 +966,14 @@ function renderTree(items, parentEl = null) {
   });
 }
 
-function createTreeNode(item) {
+function createTreeNode(item, level = 0) {
   const li = document.createElement('div');
-  li.className = 'tree-node';
+  li.className = 'tree-node level-' + level;
   li.dataset.id = item.id;
   
   const hasChildren = item.children?.length;
   const isLink = item.action === 'link' && item.url;
+  const disp = state.treeDisplay;
   
   const label = document.createElement('div');
   label.className = 'tree-label';
@@ -917,27 +987,57 @@ function createTreeNode(item) {
   } else {
     arrow.className = 'tree-arrow empty';
   }
+  arrow.style.display = disp.icon !== false ? '' : (hasChildren ? '' : 'none');
   label.appendChild(arrow);
   
+  // 编号
+  if (disp.number !== false) {
+    state.treeNodeCounter++;
+    const num = document.createElement('span');
+    num.className = 'tree-number';
+    num.textContent = state.treeNodeCounter + '.';
+    label.appendChild(num);
+  }
+  
   // 图标
-  const icon = document.createElement('span');
-  icon.className = 'tree-icon ' + (hasChildren ? 'folder' : (isLink ? 'link' : 'file'));
-  icon.innerHTML = `<i class="fas ${item.icon || 'fa-file'}"></i>`;
-  label.appendChild(icon);
+  if (disp.icon !== false) {
+    const icon = document.createElement('span');
+    icon.className = 'tree-icon ' + (hasChildren ? 'folder' : (isLink ? 'link' : 'file'));
+    icon.innerHTML = `<i class="fas ${item.icon || 'fa-file'}"></i>`;
+    label.appendChild(icon);
+  }
   
   // 名称
-  const name = document.createElement('span');
-  name.className = 'tree-name';
-  name.textContent = item.label;
-  name.title = item.description || '';
-  label.appendChild(name);
+  if (disp.name !== false) {
+    const name = document.createElement('span');
+    name.className = 'tree-name';
+    name.textContent = item.label;
+    name.title = item.description || '';
+    label.appendChild(name);
+  }
   
   // 快捷键
-  if (item.shortcut) {
+  if (disp.shortcut !== false && item.shortcut) {
     const sc = document.createElement('span');
     sc.className = 'tree-shortcut';
     sc.textContent = item.shortcut;
     label.appendChild(sc);
+  }
+  
+  // 类型标签
+  if (disp.type !== false && item.type) {
+    const type = document.createElement('span');
+    type.className = 'tree-type';
+    type.textContent = item.type;
+    label.appendChild(type);
+  }
+  
+  // 坐标
+  if (disp.coord !== false && item.coord) {
+    const coord = document.createElement('span');
+    coord.className = 'tree-coord';
+    coord.textContent = item.coord;
+    label.appendChild(coord);
   }
   
   label.onclick = () => handleItemClick(item, label);
@@ -947,11 +1047,15 @@ function createTreeNode(item) {
   if (hasChildren) {
     const children = document.createElement('div');
     children.className = 'tree-children';
-    item.children.forEach(child => children.appendChild(createTreeNode(child)));
+    item.children.forEach(child => children.appendChild(createTreeNode(child, level + 1)));
     li.appendChild(children);
   }
   
   return li;
+}
+
+function resetTreeNodeCounter() {
+  state.treeNodeCounter = 0;
 }
 
 function toggleNode(li, arrow) {
@@ -1029,6 +1133,52 @@ function countItems(items) {
     if (item.children) count += countItems(item.children);
   });
   return count;
+}
+
+/* =====================================================
+   树形显示设置
+   ===================================================== */
+function showTreeDisplaySettings() {
+  // 更新复选框状态
+  const disp = state.treeDisplay;
+  document.getElementById('disp-number').checked = disp.number !== false;
+  document.getElementById('disp-icon').checked = disp.icon !== false;
+  document.getElementById('disp-name').checked = disp.name !== false;
+  document.getElementById('disp-shortcut').checked = disp.shortcut !== false;
+  document.getElementById('disp-type').checked = disp.type === true;
+  document.getElementById('disp-coord').checked = disp.coord === true;
+  document.getElementById('treeDisplayModal').classList.add('show');
+}
+
+function updateTreeDisplay() {
+  state.treeDisplay = {
+    number: document.getElementById('disp-number').checked,
+    icon: document.getElementById('disp-icon').checked,
+    name: document.getElementById('disp-name').checked,
+    shortcut: document.getElementById('disp-shortcut').checked,
+    type: document.getElementById('disp-type').checked,
+    coord: document.getElementById('disp-coord').checked
+  };
+  
+  localStorage.setItem('geolibre_tree_display', JSON.stringify(state.treeDisplay));
+  resetTreeNodeCounter();
+  renderTree(state.catalog);
+  setTimeout(expandAll, 50);
+  document.getElementById('treeCount').textContent = countItems(state.catalog) + '项';
+}
+
+function resetTreeDisplay() {
+  state.treeDisplay = {
+    number: true,
+    icon: true,
+    name: true,
+    shortcut: true,
+    type: false,
+    coord: false
+  };
+  localStorage.setItem('geolibre_tree_display', JSON.stringify(state.treeDisplay));
+  updateTreeDisplay();
+  showToast('已恢复默认显示设置');
 }
 
 /* =====================================================
@@ -2215,7 +2365,7 @@ function deleteBookmark(index) {
 }
 
 /* =====================================================
-   定位
+   GPS/北斗定位
    ===================================================== */
 function getLocation() {
   if (!navigator.geolocation) {
@@ -2226,13 +2376,164 @@ function getLocation() {
   showToast('正在定位...');
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      const { longitude, latitude } = pos.coords;
+      const { longitude, latitude, accuracy, altitude, heading, speed } = pos.coords;
       flyToPoint(longitude, latitude, 15);
-      addSearchMarker(longitude, latitude, 'GPS定位');
-      showToast('已定位到您的位置 (精度: ' + Math.round(pos.coords.accuracy) + 'm)');
+      
+      // 创建GPS标记
+      if (state.gpsMarker) state.gpsMarker.remove();
+      state.gpsInfo = {
+        lon: longitude,
+        lat: latitude,
+        accuracy,
+        altitude: altitude || 0,
+        heading: heading || 0,
+        speed: speed || 0,
+        time: new Date().toLocaleTimeString(),
+        source: altitude !== null ? '北斗/GPS' : 'GPS'
+      };
+      
+      const el = document.createElement('div');
+      el.innerHTML = `
+        <div style="
+          width:32px;height:32px;
+          background:rgba(34,197,94,0.3);
+          border-radius:50%;
+          display:flex;align-items:center;justify-content:center;
+          border:3px solid #22c55e;
+          box-shadow:0 0 20px rgba(34,197,94,0.5);
+          animation:pulse-gps 2s infinite;
+        ">
+          <div style="width:10px;height:10px;background:#22c55e;border-radius:50%"></div>
+        </div>
+      `;
+      
+      state.gpsMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([longitude, latitude])
+        .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(`
+          <div style="font-size:12px;padding:6px;min-width:160px">
+            <b style="color:#22c55e">📍 ${state.gpsInfo.source}</b><br>
+            <hr style="border:none;border-top:1px solid #eee;margin:6px 0">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px;font-size:11px">
+              <span style="color:#666">经度</span><span>${longitude.toFixed(6)}</span>
+              <span style="color:#666">纬度</span><span>${latitude.toFixed(6)}</span>
+              <span style="color:#666">精度</span><span>±${Math.round(accuracy)}米</span>
+              ${altitude ? `<span style="color:#666">高度</span><span>${Math.round(altitude)}米</span>` : ''}
+              ${heading ? `<span style="color:#666">方向</span><span>${Math.round(heading)}°</span>` : ''}
+              ${speed ? `<span style="color:#666">速度</span><span>${(speed * 3.6).toFixed(1)}km/h</span>` : ''}
+            </div>
+          </div>
+        `))
+        .addTo(state.map);
+      
+      // 添加脉冲动画
+      if (!document.getElementById('gps-pulse-style')) {
+        const style = document.createElement('style');
+        style.id = 'gps-pulse-style';
+        style.textContent = '@keyframes pulse-gps{0%{transform:scale(1);opacity:1}50%{transform:scale(1.3);opacity:0.6}100%{transform:scale(1);opacity:1}}';
+        document.head.appendChild(style);
+      }
+      
+      updateGPSDisplay();
+      showToast(`已定位 (${state.gpsInfo.source}, ±${Math.round(accuracy)}米)`);
     },
-    () => showToast('GPS定位失败', 'error')
+    (err) => {
+      showToast('定位失败: ' + err.message, 'error');
+      console.error('GPS错误:', err);
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
+}
+
+function startGPSTracking() {
+  if (!navigator.geolocation) {
+    showToast('浏览器不支持定位', 'error');
+    return;
+  }
+  
+  if (state.gpsWatch) {
+    navigator.geolocation.clearWatch(state.gpsWatch);
+    state.gpsWatch = null;
+    state.gpsEnabled = false;
+    showToast('已停止GPS追踪');
+    document.getElementById('btnGPSTrack')?.classList.remove('active');
+    return;
+  }
+  
+  state.gpsEnabled = true;
+  state.gpsTrack = [];
+  showToast('开始GPS/北斗追踪...');
+  document.getElementById('btnGPSTrack')?.classList.add('active');
+  
+  state.gpsWatch = navigator.geolocation.watchPosition(
+    (pos) => {
+      const { longitude, latitude, accuracy, altitude, heading, speed } = pos.coords;
+      
+      state.gpsInfo = {
+        lon: longitude,
+        lat: latitude,
+        accuracy,
+        altitude: altitude || 0,
+        heading: heading || 0,
+        speed: speed || 0,
+        time: new Date().toLocaleTimeString(),
+        source: altitude !== null ? '北斗/GPS' : 'GPS'
+      };
+      
+      if (state.gpsMarker) {
+        state.gpsMarker.setLngLat([longitude, latitude]);
+      } else {
+        const el = document.createElement('div');
+        el.innerHTML = `<div style="width:28px;height:28px;background:rgba(34,197,94,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #22c55e;box-shadow:0 0 15px rgba(34,197,94,0.5);animation:pulse-gps 2s infinite"><div style="width:10px;height:10px;background:#22c55e;border-radius:50%"></div></div>`;
+        state.gpsMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([longitude, latitude])
+          .setPopup(new maplibregl.Popup().setHTML(`<b>实时定位</b><br>${longitude.toFixed(6)}, ${latitude.toFixed(6)}`))
+          .addTo(state.map);
+      }
+      
+      state.gpsTrack.push([longitude, latitude]);
+      updateGPSTrack();
+      updateGPSDisplay();
+      document.getElementById('lngDisplay').value = longitude.toFixed(4);
+      document.getElementById('latDisplay').value = latitude.toFixed(4);
+    },
+    (err) => {
+      console.error('GPS追踪错误:', err);
+      showToast('GPS信号弱: ' + err.message, 'error');
+    },
+    { enableHighAccuracy: true, maximumAge: 0 }
+  );
+}
+
+function updateGPSTrack() {
+  if (!state.map || state.gpsTrack.length < 2) return;
+  const trackId = 'gps_track_line';
+  if (state.map.getLayer(trackId)) state.map.removeLayer(trackId);
+  if (state.map.getSource(trackId)) state.map.removeSource(trackId);
+  state.map.addSource(trackId, {
+    type: 'geojson',
+    data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: state.gpsTrack } }
+  });
+  state.map.addLayer({
+    id: trackId, type: 'line', source: trackId,
+    paint: { 'line-color': '#22c55e', 'line-width': 3, 'line-opacity': 0.8 }
+  });
+}
+
+function updateGPSDisplay() {
+  if (!state.gpsInfo) return;
+  const info = state.gpsInfo;
+  const statusEl = document.getElementById('mapStatus');
+  if (statusEl) {
+    statusEl.innerHTML = `<span class="status-dot" style="background:#22c55e"></span>${info.source} ${info.lat.toFixed(4)},${info.lon.toFixed(4)}`;
+  }
+}
+
+function stopGPSTracking() {
+  if (state.gpsWatch) {
+    navigator.geolocation.clearWatch(state.gpsWatch);
+    state.gpsWatch = null;
+  }
+  state.gpsEnabled = false;
 }
 
 async function getLocationInfo() {
