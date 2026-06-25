@@ -882,17 +882,12 @@ async function initMap() {
     { name: 'CartoDB-航海', url: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', type: 'xyz', attribution: '&copy; CARTO' }
   ];
   
-  showToast('正在获取位置信息...', 'info');
-  
-  // 获取用户位置（按优先级）
+  // 获取用户位置（静默获取，不弹出任何提示）
   const userLocation = await getUserLocation();
   console.log('用户位置:', userLocation);
   
-  // 使用获取到的位置或默认位置
   const mapCenter = userLocation || CONFIG.mapCenter;
   const mapZoom = userLocation ? 10 : CONFIG.mapZoom;
-  
-  showToast('正在测试最快地图源...', 'info');
   
   const fastestBasemap = await testFastestBasemap(basemaps);
   console.log('最快地图源:', fastestBasemap.name);
@@ -940,21 +935,20 @@ async function initMap() {
   }
 }
 
-// 获取用户位置（按优先级：Geolocation > IP定位 > 用户习惯 > 默认）
+// 获取用户位置（静默获取，不弹出任何权限请求）
 async function getUserLocation() {
-  // 优先级1: 浏览器Geolocation API
+  // 优先级1: 用户习惯位置（上次访问的位置）- 最快且不打扰用户
   try {
-    const geoLocation = await getGeolocation();
-    if (geoLocation) {
-      console.log('通过Geolocation获取位置');
-      saveUserLocation(geoLocation);
-      return geoLocation;
+    const savedLocation = getSavedLocation();
+    if (savedLocation) {
+      console.log('使用用户习惯位置');
+      return savedLocation;
     }
   } catch (e) {
-    console.warn('Geolocation失败:', e);
+    console.warn('读取用户习惯位置失败:', e);
   }
   
-  // 优先级2: IP地址定位
+  // 优先级2: IP地址定位（静默获取，不弹出权限请求）
   try {
     const ipLocation = await getIPLocation();
     if (ipLocation) {
@@ -966,18 +960,7 @@ async function getUserLocation() {
     console.warn('IP定位失败:', e);
   }
   
-  // 优先级3: 用户习惯位置（上次访问的位置）
-  try {
-    const savedLocation = getSavedLocation();
-    if (savedLocation) {
-      console.log('使用用户习惯位置');
-      return savedLocation;
-    }
-  } catch (e) {
-    console.warn('读取用户习惯位置失败:', e);
-  }
-  
-  // 优先级4: 按国际惯例（根据时区推断）
+  // 优先级3: 按国际惯例（根据时区推断）- 完全客户端计算，零请求
   try {
     const inferredLocation = inferLocationFromTimezone();
     if (inferredLocation) {
@@ -989,30 +972,6 @@ async function getUserLocation() {
   }
   
   return null;
-}
-
-// 通过浏览器Geolocation API获取位置
-function getGeolocation() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('浏览器不支持地理定位'));
-      return;
-    }
-    
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve([position.coords.longitude, position.coords.latitude]);
-      },
-      (error) => {
-        reject(error);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
-      }
-    );
-  });
 }
 
 // 通过IP地址获取位置
