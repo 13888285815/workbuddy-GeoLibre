@@ -437,23 +437,52 @@ body{background:#0f1639;color:#e6e8f5}
 
     <div class="preview-area">
       <div class="toolbar">
+        <!-- 常用地图操作 -->
         <div class="tool-group">
           <button class="tbtn" onclick="if(state.map)state.map.zoomIn()" title="放大(+)"><i class="fas fa-plus"></i></button>
           <button class="tbtn" onclick="if(state.map)state.map.zoomOut()" title="缩小(-)"><i class="fas fa-minus"></i></button>
           <button class="tbtn" onclick="resetMapView()" title="重置视图(R)"><i class="fas fa-home"></i></button>
-          <button class="tbtn" onclick="getLocation()" title="定位自己"><i class="fas fa-location-crosshairs"></i></button>
         </div>
         
         <span class="tool-sep"></span>
         
+        <!-- 定位 -->
         <div class="tool-group">
-          <button class="tbtn" onclick="showBasemapSelector()" title="切换底图(B)"><i class="fas fa-layer-group"></i></button>
-          <button class="tbtn" onclick="showLayerPanel()" title="图层列表(L)"><i class="fas fa-list"></i></button>
-          <button class="tbtn" onclick="promptGeoJSONUrl()" title="添加GeoJSON"><i class="fas fa-plus-circle"></i></button>
+          <button class="tbtn" onclick="getLocation()" title="GPS定位"><i class="fas fa-location-crosshairs"></i></button>
+          <button class="tbtn" onclick="showLocateModal()" title="坐标定位(G)"><i class="fas fa-crosshairs"></i></button>
+          <button class="tbtn" onclick="getLocationInfo()" title="位置信息"><i class="fas fa-info-circle"></i></button>
         </div>
         
         <span class="tool-sep"></span>
         
+        <!-- 底图切换 -->
+        <div class="tool-group">
+          <button class="tbtn" onclick="switchBasemapByIndex(0)" title="街道图"><i class="fas fa-road"></i></button>
+          <button class="tbtn" onclick="switchBasemapByIndex(4)" title="卫星图"><i class="fas fa-satellite"></i></button>
+          <button class="tbtn" onclick="switchBasemapByIndex(5)" title="暗色图"><i class="fas fa-moon"></i></button>
+          <button class="tbtn" onclick="showBasemapSelector()" title="更多底图"><i class="fas fa-layer-group"></i></button>
+        </div>
+        
+        <span class="tool-sep"></span>
+        
+        <!-- 常用工具 -->
+        <div class="tool-group">
+          <button class="tbtn" onclick="promptLocalFile()" title="打开文件"><i class="fas fa-folder-open"></i></button>
+          <button class="tbtn" onclick="showLayerPanel()" title="图层列表(L)"><i class="fas fa-list"></i></button>
+          <button class="tbtn" onclick="startDraw('marker')" title="添加标注"><i class="fas fa-tag"></i></button>
+        </div>
+        
+        <span class="tool-sep"></span>
+        
+        <!-- 测量 -->
+        <div class="tool-group">
+          <button class="tbtn" id="btnMeasureDist" onclick="startMeasure('distance')" title="距离测量"><i class="fas fa-ruler-combined"></i></button>
+          <button class="tbtn" id="btnMeasureArea" onclick="startMeasure('area')" title="面积测量"><i class="fas fa-vector-square"></i></button>
+        </div>
+        
+        <span class="tool-sep"></span>
+        
+        <!-- 绘制 -->
         <div class="tool-group">
           <button class="tbtn" id="btnDrawPoint" onclick="startDraw('point')" title="绘制点(P)"><i class="fas fa-map-marker-alt"></i></button>
           <button class="tbtn" id="btnDrawLine" onclick="startDraw('line')" title="绘制线"><i class="fas fa-route"></i></button>
@@ -462,10 +491,10 @@ body{background:#0f1639;color:#e6e8f5}
         
         <span class="tool-sep"></span>
         
+        <!-- 分析 -->
         <div class="tool-group">
-          <button class="tbtn" id="btnMeasureDist" onclick="startMeasure('distance')" title="距离测量"><i class="fas fa-ruler-combined"></i></button>
-          <button class="tbtn" id="btnMeasureArea" onclick="startMeasure('area')" title="面积测量"><i class="fas fa-vector-square"></i></button>
           <button class="tbtn" onclick="startBuffer()" title="缓冲区"><i class="fas fa-circle"></i></button>
+          <button class="tbtn" onclick="startHeatmap()" title="热力图"><i class="fas fa-fire"></i></button>
         </div>
         
         <span class="tool-sep"></span>
@@ -679,6 +708,108 @@ const state = {
 };
 
 /* =====================================================
+   智能定位 - 获取用户位置
+   ===================================================== */
+async function detectUserLocation() {
+  const DEFAULT_LOCATIONS = [
+    { name: '北京', lon: 116.3975, lat: 39.9087, reason: '首都/默认' },
+    { name: '上海', lon: 121.4737, lat: 31.2304, reason: '默认' },
+    { name: '华盛顿', lon: -77.0369, lat: 38.9072, reason: '默认(西方)' }
+  ];
+  
+  // 优先级1: GPS精确定位
+  if (navigator.geolocation) {
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, enableHighAccuracy: true });
+      });
+      return {
+        lon: position.coords.longitude,
+        lat: position.coords.latitude,
+        name: 'GPS定位',
+        accuracy: position.coords.accuracy,
+        source: 'gps'
+      };
+    } catch (e) {
+      console.log('GPS获取失败:', e.message);
+    }
+  }
+  
+  // 优先级2: IP地址定位 (使用ipapi.co)
+  try {
+    const res = await fetch('https://ipapi.co/json/', { timeout: 5000 });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.latitude && data.longitude) {
+        return {
+          lon: data.longitude,
+          lat: data.latitude,
+          name: data.city ? `${data.city}, ${data.country_name}` : data.country_name,
+          city: data.city,
+          country: data.country_name,
+          region: data.region,
+          source: 'ip'
+        };
+      }
+    }
+  } catch (e) {
+    console.log('IP定位失败:', e.message);
+  }
+  
+  // 优先级3: 通过浏览器语言/时区推断
+  const lang = navigator.language || 'zh-CN';
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  
+  // 中文环境默认北京
+  if (lang.startsWith('zh')) {
+    return { lon: 116.3975, lat: 39.9087, name: '北京(推断)', reason: '中文环境', source: 'inferred' };
+  }
+  
+  // 台湾
+  if (tz.includes('Taipei') || tz.includes('Taiwan')) {
+    return { lon: 121.5654, lat: 25.0330, name: '台北(时区)', reason: '台湾时区', source: 'inferred' };
+  }
+  
+  // 香港
+  if (tz.includes('Hong_Kong')) {
+    return { lon: 114.1694, lat: 22.3193, name: '香港(时区)', reason: '香港时区', source: 'inferred' };
+  }
+  
+  // 日本
+  if (tz.includes('Tokyo') || lang.startsWith('ja')) {
+    return { lon: 139.6917, lat: 35.6895, name: '东京(时区)', reason: '日本时区', source: 'inferred' };
+  }
+  
+  // 韩国
+  if (tz.includes('Seoul') || lang.startsWith('ko')) {
+    return { lon: 126.9780, lat: 37.5665, name: '首尔(时区)', reason: '韩国时区', source: 'inferred' };
+  }
+  
+  // 新加坡
+  if (tz.includes('Singapore')) {
+    return { lon: 103.8198, lat: 1.3521, name: '新加坡(时区)', reason: '新加坡时区', source: 'inferred' };
+  }
+  
+  // 东南亚
+  if (['th', 'ms', 'id', 'vi', 'tl'].some(l => lang.startsWith(l))) {
+    return { lon: 103.8198, lat: 1.3521, name: '新加坡(东南亚)', reason: '东南亚语言', source: 'inferred' };
+  }
+  
+  // 欧洲
+  if (['de', 'fr', 'es', 'it', 'pt', 'nl', 'ru', 'pl'].some(l => lang.startsWith(l))) {
+    return { lon: 13.4050, lat: 52.5200, name: '柏林(推断)', reason: '欧洲时区', source: 'inferred' };
+  }
+  
+  // 美洲英文
+  if (['en-US', 'en-CA'].includes(lang) || tz.includes('America/New_York')) {
+    return { lon: -74.0060, lat: 40.7128, name: '纽约(推断)', reason: '美国英语', source: 'inferred' };
+  }
+  
+  // 默认北京
+  return { lon: 116.3975, lat: 39.9087, name: '北京(默认)', reason: '国际惯例', source: 'default' };
+}
+
+/* =====================================================
    初始化
    ===================================================== */
 async function init() {
@@ -686,16 +817,30 @@ async function init() {
     await loadCatalog();
     renderTree(state.catalog);
     document.getElementById('treeCount').textContent = countItems(state.catalog) + '项';
-    initMap();
+    
+    // 智能定位
+    const userLoc = await detectUserLocation();
+    CONFIG.mapCenter = [userLoc.lon, userLoc.lat];
+    console.log('定位成功:', userLoc);
+    
+    initMap(userLoc);
     initSplitter();
     initKeyboard();
     loadBookmarks();
+    
+    // 树形结构默认展开
+    setTimeout(expandAll, 100);
+    
+    // 显示定位信息
+    showToast('已定位到: ' + userLoc.name, 'success');
+    
   } catch (e) {
     console.error('初始化失败:', e);
     state.catalog = getDefaultCatalog();
     state.basemaps = getDefaultBasemaps();
     renderTree(state.catalog);
     initMap();
+    setTimeout(expandAll, 100);
   }
 }
 
@@ -985,7 +1130,7 @@ function hasChildren(item) {
 /* =====================================================
    地图初始化
    ===================================================== */
-function initMap() {
+function initMap(userLoc) {
   state.map = new maplibregl.Map({
     container: 'map',
     style: createStyle(state.basemaps[0]),
@@ -1010,6 +1155,11 @@ function initMap() {
   state.map.on('load', () => {
     document.getElementById('statusDot').className = 'status-dot';
     document.getElementById('mapStatus').textContent = '在线';
+    
+    // 地图加载后显示用户位置
+    if (userLoc) {
+      addUserLocationMarker(userLoc);
+    }
   });
   
   state.map.on('error', () => {
@@ -1019,6 +1169,51 @@ function initMap() {
   
   // 点击地图
   state.map.on('click', handleMapClick);
+}
+
+function addUserLocationMarker(loc) {
+  const el = document.createElement('div');
+  el.innerHTML = `
+    <div style="
+      width:40px;height:40px;
+      background:rgba(124,93,252,0.3);
+      border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      border:3px solid #7c5dfc;
+      box-shadow:0 0 20px rgba(124,93,252,0.5);
+      animation:pulse-user 2s infinite;
+    ">
+      <div style="
+        width:14px;height:14px;
+        background:#fff;border-radius:50%;
+      "></div>
+    </div>
+  `;
+  
+  const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+    .setLngLat([loc.lon, loc.lat])
+    .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(`
+      <div style="font-size:12px;padding:4px">
+        <b>当前位置</b><br>
+        <span style="color:#666">${loc.name}</span><br>
+        <small style="color:#999">来源: ${loc.source}</small>
+      </div>
+    `))
+    .addTo(state.map);
+  
+  // 添加脉冲动画样式
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes pulse-user {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  // 更新状态栏显示
+  document.getElementById('mapStatus').innerHTML = `<span class="status-dot"></span>${loc.name}`;
 }
 
 function createStyle(basemap) {
@@ -2033,11 +2228,95 @@ function getLocation() {
     (pos) => {
       const { longitude, latitude } = pos.coords;
       flyToPoint(longitude, latitude, 15);
-      addSearchMarker(longitude, latitude, '我的位置');
-      showToast('已定位到您的位置');
+      addSearchMarker(longitude, latitude, 'GPS定位');
+      showToast('已定位到您的位置 (精度: ' + Math.round(pos.coords.accuracy) + 'm)');
     },
-    () => showToast('定位失败', 'error')
+    () => showToast('GPS定位失败', 'error')
   );
+}
+
+async function getLocationInfo() {
+  const info = [];
+  const center = state.map.getCenter();
+  const zoom = state.map.getZoom();
+  
+  info.push(`📍 当前中心: ${center.lng.toFixed(6)}, ${center.lat.toFixed(6)}`);
+  info.push(`🔍 缩放级别: ${zoom.toFixed(1)}`);
+  
+  // 浏览器信息
+  info.push(`🌐 浏览器: ${navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Safari') ? 'Safari' : '其他'}`);
+  info.push(`🗣️ 语言: ${navigator.language}`);
+  info.push(`🕐 时区: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`);
+  
+  // 屏幕信息
+  info.push(`📐 屏幕: ${screen.width}×${screen.height}`);
+  
+  // 获取IP位置
+  try {
+    const res = await fetch('https://ipapi.co/json/', { timeout: 5000 });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.city) {
+        info.push(`🏠 IP位置: ${data.city}, ${data.country_name}`);
+        info.push(`📡 ISP: ${data.org || '未知'}`);
+      }
+    }
+  } catch (e) {}
+  
+  // GPS位置
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        info.push(`📌 GPS: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
+        info.push(`🎯 精度: ${Math.round(pos.coords.accuracy)}米`);
+        showLocationInfoModal(info.join('\n'));
+      },
+      () => {
+        info.push('📌 GPS: 不可用');
+        showLocationInfoModal(info.join('\n'));
+      }
+    );
+  } else {
+    info.push('📌 GPS: 不支持');
+    showLocationInfoModal(info.join('\n'));
+  }
+}
+
+function showLocationInfoModal(content) {
+  const modal = document.getElementById('locateModal');
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h3><i class="fas fa-info-circle"></i> 位置信息</h3>
+        <button class="modal-close" onclick="closeModal('locateModal')"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <pre style="white-space:pre-wrap;font-size:12px;color:#eef2ff;line-height:1.8">${content}</pre>
+        <div class="modal-btns">
+          <button class="modal-btn" onclick="copyLocationInfo()"><i class="fas fa-copy"></i> 复制</button>
+          <button class="modal-btn secondary" onclick="closeModal('locateModal')">关闭</button>
+        </div>
+      </div>
+    </div>
+  `;
+  modal.classList.add('show');
+  window._locationInfoContent = content;
+}
+
+function copyLocationInfo() {
+  if (window._locationInfoContent) {
+    navigator.clipboard.writeText(window._locationInfoContent).then(() => {
+      showToast('已复制到剪贴板');
+    });
+  }
+}
+
+function switchBasemapByIndex(index) {
+  if (state.basemaps[index]) {
+    state.currentBasemap = index;
+    state.map.setStyle(createStyle(state.basemaps[index]));
+    showToast('已切换: ' + state.basemaps[index].name);
+  }
 }
 
 /* =====================================================
