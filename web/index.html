@@ -286,6 +286,7 @@ body{background:#0f1639;color:#e6e8f5}
 .result-name{font-size:14px;color:#eef2ff;font-weight:500;margin-bottom:4px}
 .result-address{font-size:12px;color:#9fb4d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .result-source{font-size:10px;color:var(--accent)}
+.result-coord{font-size:10px;color:#7a89b8;white-space:nowrap}
 
 /* 图层列表 */
 .layer-list{max-height:400px;overflow-y:auto}
@@ -1129,16 +1130,135 @@ function switchBasemap(index) {
 }
 
 /* =====================================================
-   搜索 - 与地图联动
+   搜索 - 多源地名检索
    ===================================================== */
+const SEARCH_SOURCES = [
+  {
+    name: 'OpenStreetMap',
+    url: (q) => `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&accept-language=zh-CN`,
+    parse: (r) => ({
+      lon: r.lon, lat: r.lat,
+      name: r.display_name.split(',').slice(0, 2).join(','),
+      address: r.display_name.substring(0, 80),
+      type: r.type || '地点',
+      importance: parseFloat(r.importance) || 0
+    })
+  },
+  {
+    name: '高德地图',
+    url: (q) => `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(q)}&city=全国&output=json&key=YOUR_AMAP_KEY`,
+    parse: (r) => ({
+      lon: parseFloat(r.location?.split(',')[0]) || 0,
+      lat: parseFloat(r.location?.split(',')[1]) || 0,
+      name: r.name,
+      address: r.address || r.cityname || '',
+      type: r.type || '地点',
+      importance: 1
+    }),
+    requiresKey: true
+  },
+  {
+    name: '百度地图',
+    url: (q) => `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=YOUR_MAPBOX_TOKEN&limit=5&language=zh`,
+    parse: (r) => ({
+      lon: r.center?.[0] || 0,
+      lat: r.center?.[1] || 0,
+      name: r.place_name?.zh || r.place_name || '地点',
+      address: r.context?.map(c => c.text).join(' ') || '',
+      type: r.properties?.category || '地点',
+      importance: 1
+    }),
+    requiresKey: true
+  }
+];
+
+// 内置常用地点库（离线备用）
+const BUILTIN_PLACES = [
+  { name: '北京', alias: ['beijing', 'bj'], lon: 116.3975, lat: 39.9087, type: '首都' },
+  { name: '上海', alias: ['shanghai', 'sh'], lon: 121.4737, lat: 31.2304, type: '城市' },
+  { name: '广州', alias: ['guangzhou', 'gz'], lon: 113.2644, lat: 23.1291, type: '城市' },
+  { name: '深圳', alias: ['shenzhen', 'sz'], lon: 114.0579, lat: 22.5431, type: '城市' },
+  { name: '杭州', alias: ['hangzhou', 'hz'], lon: 120.1551, lat: 30.2741, type: '城市' },
+  { name: '成都', alias: ['chengdu', 'cd'], lon: 104.0655, lat: 30.6598, type: '城市' },
+  { name: '武汉', alias: ['wuhan', 'wh'], lon: 114.3055, lat: 30.5928, type: '城市' },
+  { name: '西安', alias: ['xian', 'xa'], lon: 108.9398, lat: 34.3416, type: '城市' },
+  { name: '南京', alias: ['nanjing', 'nj'], lon: 118.7969, lat: 32.0603, type: '城市' },
+  { name: '重庆', alias: ['chongqing', 'cq'], lon: 106.5516, lat: 29.5630, type: '城市' },
+  { name: '故宫', alias: ['gugong', 'palace'], lon: 116.3970, lat: 39.9163, type: '景点' },
+  { name: '天安门', alias: ['tiananmen'], lon: 116.3975, lat: 39.9073, type: '地标' },
+  { name: '长城', alias: ['great wall', 'changcheng'], lon: 116.5704, lat: 40.4339, type: '景点' },
+  { name: '东方明珠', alias: ['oriental pearl'], lon: 121.4996, lat: 31.2397, type: '地标' },
+  { name: '外滩', alias: ['waitan', 'bund'], lon: 121.4903, lat: 31.2402, type: '景点' },
+  { name: '西湖', alias: ['xihu', 'west lake'], lon: 120.1551, lat: 30.2541, type: '景点' },
+  { name: '颐和园', alias: ['yiheyuan', 'summer palace'], lon: 116.2732, lat: 39.9888, type: '景点' },
+  { name: '天坛', alias: ['tiantan', 'temple of heaven'], lon: 116.4106, lat: 39.8813, type: '景点' },
+  { name: '长城-八达岭', alias: ['badaling'], lon: 116.6048, lat: 40.3654, type: '景点' },
+  { name: '长城-慕田峪', alias: ['mutianyu'], lon: 116.5696, lat: 40.4357, type: '景点' },
+  { name: '兵马俑', alias: ['terracotta army', 'bamayong'], lon: 109.2785, lat: 34.3844, type: '景点' },
+  { name: '黄山', alias: ['huangshan', 'yellow mountain'], lon: 118.1590, lat: 30.0444, type: '景点' },
+  { name: '泰山', alias: ['taishan', 'mount tai'], lon: 117.0894, lat: 36.2707, type: '景点' },
+  { name: '杭州西湖', alias: ['hangzhou xihu'], lon: 120.1551, lat: 30.2541, type: '景点' },
+  { name: '桂林', alias: ['guilin'], lon: 110.2967, lat: 25.2744, type: '城市' },
+  { name: '丽江古城', alias: ['lijiang'], lon: 100.2330, lat: 26.8721, type: '景点' },
+  { name: '拉萨', alias: ['lhasa'], lon: 91.1172, lat: 29.6470, type: '城市' },
+  { name: '布达拉宫', alias: ['potala'], lon: 91.1172, lat: 29.6577, type: '景点' },
+  { name: '三亚', alias: ['sanya'], lon: 109.5119, lat: 18.2533, type: '城市' },
+  { name: '大理', alias: ['dali'], lon: 100.2676, lat: 25.6065, type: '城市' },
+  { name: '厦门', alias: ['xiamen', 'amoy'], lon: 118.0894, lat: 24.4798, type: '城市' },
+  { name: '青岛', alias: ['qingdao'], lon: 120.3826, lat: 36.0671, type: '城市' },
+  { name: '天津', alias: ['tianjin', 'tj'], lon: 117.3616, lat: 39.3434, type: '城市' },
+  { name: '苏州', alias: ['suzhou', 'su'], lon: 120.5853, lat: 31.2984, type: '城市' },
+  { name: '郑州', alias: ['zhengzhou', 'zz'], lon: 113.6254, lat: 34.7466, type: '城市' },
+  { name: '长沙', alias: ['changsha', 'cs'], lon: 112.9388, lat: 28.2282, type: '城市' },
+  { name: '济南', alias: ['jinan', 'jn'], lon: 117.1205, lat: 36.6512, type: '城市' },
+  { name: '石家庄', alias: ['shijiazhuang', 'sjz'], lon: 114.5149, lat: 38.0428, type: '城市' },
+  { name: '南昌', alias: ['nanchang', 'nc'], lon: 115.8581, lat: 28.6829, type: '城市' },
+  { name: '昆明', alias: ['kunming', 'km'], lon: 102.7129, lat: 25.0406, type: '城市' },
+  { name: '贵阳', alias: ['guiyang', 'gy'], lon: 106.6302, lat: 26.6470, type: '城市' },
+  { name: '南宁', alias: ['nanning', 'nn'], lon: 108.3661, lat: 22.8170, type: '城市' },
+  { name: '海口', alias: ['haikou', 'hk'], lon: 110.3492, lat: 20.0222, type: '城市' },
+  { name: '太原', alias: ['taiyuan', 'ty'], lon: 112.5489, lat: 37.8706, type: '城市' },
+  { name: '合肥', alias: ['hefei', 'hf'], lon: 117.2272, lat: 31.8206, type: '城市' },
+  { name: '福州', alias: ['fuzhou', 'fz'], lon: 119.2965, lat: 26.0745, type: '城市' },
+  { name: '兰州', alias: ['lanzhou', 'lz'], lon: 103.8343, lat: 36.0611, type: '城市' },
+  { name: '乌鲁木齐', alias: ['urumqi', 'wlmq'], lon: 87.6168, lat: 43.8266, type: '城市' },
+  { name: '银川', alias: ['yinchuan', 'yc'], lon: 106.2309, lat: 38.4872, type: '城市' },
+  { name: '西宁', alias: ['xining', 'xn'], lon: 101.7781, lat: 36.6171, type: '城市' },
+  { name: '呼和浩特', alias: ['hohhot', 'huhehaote'], lon: 111.7490, lat: 40.8428, type: '城市' },
+  { name: '拉萨布达拉宫', alias: ['lhasa potala'], lon: 91.1172, lat: 29.6577, type: '景点' },
+  { name: '长江三峡', alias: ['three gorges', 'sanxia'], lon: 110.4830, lat: 31.0320, type: '景点' },
+  { name: '张家界', alias: ['zhangjiajie'], lon: 110.4792, lat: 29.1173, type: '景点' },
+  { name: '九寨沟', alias: ['jiuzhaigou'], lon: 103.9173, lat: 33.2537, type: '景点' },
+  { name: '敦煌莫高窟', alias: ['dunhuang mogao'], lon: 94.6629, lat: 40.1422, type: '景点' },
+  { name: '西安城墙', alias: ['xian city wall'], lon: 108.9402, lat: 34.3416, type: '景点' },
+  { name: '南京中山陵', alias: ['zhongshan ling'], lon: 118.8572, lat: 31.8249, type: '景点' },
+  { name: '苏州园林', alias: ['suzhou garden'], lon: 120.5853, lat: 31.2984, type: '景点' },
+  { name: '香港', alias: ['hong kong', 'xianggang', 'hk'], lon: 114.1694, lat: 22.3193, type: '城市' },
+  { name: '澳门', alias: ['macau', 'aomen', 'mo'], lon: 113.5491, lat: 22.1988, type: '城市' },
+  { name: '台北', alias: ['taipei', 'taibei'], lon: 121.5654, lat: 25.0330, type: '城市' },
+  { name: '高雄', alias: ['kaohsiung'], lon: 120.3014, lat: 22.6273, type: '城市' },
+  { name: '国家体育场', alias: ['鸟巢', 'bird nest', 'national stadium'], lon: 116.4074, lat: 39.9128, type: '地标' },
+  { name: '水立方', alias: ['swimming cube', 'aquatic center'], lon: 116.3867, lat: 39.9925, type: '地标' },
+  { name: '广州塔', alias: ['小蛮腰', 'canton tower'], lon: 113.3191, lat: 23.1093, type: '地标' },
+  { name: '小蛮腰', alias: ['广州塔', 'canton tower'], lon: 113.3191, lat: 23.1093, type: '地标' },
+  { name: '中央商务区', alias: ['CBD'], lon: 116.4551, lat: 39.9088, type: '区域' },
+  { name: '中关村', alias: ['zhongguancun', 'tech hub'], lon: 116.3142, lat: 39.9831, type: '区域' },
+  { name: '陆家嘴', alias: ['lujiazui', 'finance center'], lon: 121.5172, lat: 31.2397, type: '区域' },
+  { name: '浦东', alias: ['pudong'], lon: 121.5441, lat: 31.2214, type: '区域' },
+  { name: '五道口', alias: ['wudaokou', 'tech area'], lon: 116.3156, lat: 39.9890, type: '区域' }
+];
+
 async function performSearch(query) {
   if (!query.trim()) return;
   
-  // 坐标搜索
-  const match = query.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
-  if (match) {
-    const lng = parseFloat(match[1]);
-    const lat = parseFloat(match[2]);
+  const q = query.trim().toLowerCase();
+  const results = [];
+  
+  // 1. 坐标搜索
+  const coordMatch = q.match(/^(-?\d+\.?\d*)\s*[,，]\s*(-?\d+\.?\d*)$/);
+  if (coordMatch) {
+    const lng = parseFloat(coordMatch[1]);
+    const lat = parseFloat(coordMatch[2]);
     if (lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) {
       flyToPoint(lng, lat, 14);
       addSearchMarker(lng, lat, query);
@@ -1148,43 +1268,115 @@ async function performSearch(query) {
   }
   
   showToast('搜索中...');
-  const results = [];
   
+  // 2. 内置地点库搜索（快速、离线可用）
+  const builtinResults = searchBuiltinPlaces(q);
+  if (builtinResults.length > 0) {
+    results.push(...builtinResults);
+  }
+  
+  // 3. 在线搜索（OSM Nominatim）
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8&accept-language=zh-CN`, {
       headers: { 'User-Agent': 'GeoLibre/1.0' }
     });
     if (res.ok) {
       const data = await res.json();
-      results.push(...data.map(r => ({
-        lon: r.lon, lat: r.lat,
-        name: r.display_name.split(',')[0],
-        address: r.display_name.substring(0, 100),
-        source: 'OpenStreetMap'
-      })));
+      const osmResults = data.map(r => ({
+        lon: parseFloat(r.lon),
+        lat: parseFloat(r.lat),
+        name: r.display_name.split(',').slice(0, 2).join(','),
+        address: r.display_name.substring(0, 80),
+        type: getTypeLabel(r.type),
+        source: 'OSM'
+      })).filter(r => r.lon && r.lat);
+      results.push(...osmResults);
     }
-  } catch (e) {}
+  } catch (e) { console.log('OSM搜索失败', e); }
   
+  // 4. Komoot Photon 搜索
   try {
     const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=zh`);
     if (res.ok) {
       const data = await res.json();
       if (data.features) {
-        results.push(...data.features.map(f => ({
+        const photonResults = data.features.map(f => ({
           lon: f.geometry.coordinates[0],
           lat: f.geometry.coordinates[1],
           name: f.properties.name || '地点',
-          address: f.properties.city || f.properties.country || '',
-          source: 'Komoot Photon'
-        })));
+          address: [f.properties.city, f.properties.country].filter(Boolean).join(', ') || '',
+          type: f.properties.type || '地点',
+          source: 'Komoot'
+        })).filter(r => r.lon && r.lat);
+        results.push(...photonResults);
       }
     }
-  } catch (e) {}
+  } catch (e) { console.log('Komoot搜索失败', e); }
   
-  if (results.length === 0) {
+  // 去重
+  const unique = [];
+  const seen = new Set();
+  results.forEach(r => {
+    const key = `${r.lon.toFixed(3)},${r.lat.toFixed(3)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(r);
+    }
+  });
+  
+  if (unique.length === 0) {
     showToast('未找到: ' + query, 'error');
     return;
   }
+  
+  // 显示所有结果
+  clearSearchMarkers();
+  unique.slice(0, 10).forEach((r, i) => {
+    addSearchMarker(r.lon, r.lat, r.name, i + 1);
+  });
+  
+  // 飞到第一个结果
+  flyToPoint(unique[0].lon, unique[0].lat, 12);
+  
+  // 显示列表
+  displaySearchResults(unique.slice(0, 10));
+}
+
+function searchBuiltinPlaces(query) {
+  const q = query.toLowerCase();
+  return BUILTIN_PLACES.filter(p => {
+    return p.name.toLowerCase().includes(q) ||
+           p.alias.some(a => a.toLowerCase().includes(q));
+  }).map(p => ({
+    lon: p.lon,
+    lat: p.lat,
+    name: p.name,
+    address: p.type,
+    type: p.type,
+    source: '内置'
+  }));
+}
+
+function getTypeLabel(type) {
+  const types = {
+    'city': '城市', 'town': '城镇', 'village': '村庄',
+    'administrative': '行政区', 'boundary': '边界',
+    'poi': '兴趣点', 'building': '建筑', 'place_of_worship': '宗教场所',
+    'restaurant': '餐厅', 'hotel': '酒店', 'shop': '商店',
+    'park': '公园', 'cemetery': '墓地', 'hospital': '医院',
+    'school': '学校', 'university': '大学', 'library': '图书馆',
+    'museum': '博物馆', 'theatre': '剧院', 'cinema': '影院',
+    'stadium': '体育场', 'pitch': '运动场', 'track': '跑道',
+    'airport': '机场', 'station': '站点', 'bus_station': '公交站',
+    'parking': '停车场', 'fuel': '加油站',
+    'bridge': '桥梁', 'tunnel': '隧道', 'road': '道路',
+    'river': '河流', 'lake': '湖泊', 'sea': '海洋', 'beach': '海滩',
+    'mountain': '山峰', 'valley': '山谷', 'island': '岛屿',
+    'country': '国家', 'state': '州/省', 'county': '县',
+    'locality': '地点', 'neighbourhood': '社区', 'suburb': '郊区'
+  };
+  return types[type] || type;
+}
   
   // 在地图上显示所有结果
   clearSearchMarkers();
@@ -1214,6 +1406,22 @@ function flyToSearchResult(lng, lat, name) {
   flyToPoint(parseFloat(lng), parseFloat(lat), 14);
   closeModal('searchModal');
   showToast('已定位到: ' + name);
+}
+
+function displaySearchResults(results) {
+  const container = document.getElementById('searchResults');
+  container.innerHTML = results.map((r, i) => `
+    <div class="search-result-item" onclick="flyToSearchResult(${r.lon}, ${r.lat}, '${r.name.replace(/'/g, "\\'")}')">
+      <div class="result-icon"><i class="fas fa-map-marker-alt"></i><span style="font-size:10px;margin-left:2px">${i + 1}</span></div>
+      <div class="result-info">
+        <div class="result-name">${r.name}</div>
+        <div class="result-address">${r.address}</div>
+        <div class="result-source">${r.source} · ${r.type}</div>
+      </div>
+      <div class="result-coord">${r.lon.toFixed(4)}, ${r.lat.toFixed(4)}</div>
+    </div>
+  `).join('');
+  document.getElementById('searchModal').classList.add('show');
 }
 
 function flyToPoint(lng, lat, zoom = 10) {
