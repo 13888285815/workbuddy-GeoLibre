@@ -389,11 +389,10 @@ body{background:#0f1639;color:#e6e8f5}
   padding:10px;background:rgba(255,255,255,.03);
   border-radius:8px;margin-bottom:8px;cursor:pointer;
 }
-.bookmark-item:hover{background:rgba(124,93,252,.08)}
-.bookmark-item i{color:var(--accent);font-size:14px}
 .bookmark-name{flex:1;font-size:13px;color:#eef2ff}
 .bookmark-coord{font-size:11px;color:#9fb4d8}
 </style>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -2280,30 +2279,172 @@ function applyStyleToSelected() {
 }
 
 function showLabelPanel() {
-  showToast('标注设置功能');
+  if (state.selectedLayerIndex === undefined) {
+    showToast('请先选择一个图层', 'error');
+    return;
+  }
+  const layer = state.layers[state.selectedLayerIndex];
+  const label = prompt('标注字段名称 (留空使用第一个属性):', '');
+  if (label === null) return;
+  
+  if (!state.map.getLayer('labels-' + layer.id)) {
+    state.map.addSource('labels-' + layer.id, {
+      type: 'geojson',
+      data: layer.featureCollection
+    });
+    state.map.addLayer({
+      id: 'labels-' + layer.id,
+      type: 'symbol',
+      source: 'labels-' + layer.id,
+      layout: {
+        'text-field': ['get', label || Object.keys(layer.featureCollection.features[0]?.properties || {}).filter(k => k !== 'geometry')[0] || 'name'],
+        'text-size': 12,
+        'text-offset': [0, -1.5],
+        'text-anchor': 'top'
+      },
+      paint: {
+        'text-color': '#ffffff',
+        'text-halo-color': '#000000',
+        'text-halo-width': 1.5
+      }
+    });
+    showToast('标注已添加');
+  } else {
+    state.map.removeLayer('labels-' + layer.id);
+    state.map.removeSource('labels-' + layer.id);
+    showToast('标注已移除');
+  }
 }
 
-function showOverlayPanel() { showToast('叠加分析功能'); }
-function showClipPanel() { showToast('裁剪分析功能'); }
-function showIntersectPanel() { showToast('相交分析功能'); }
-function showUnionPanel() { showToast('合并分析功能'); }
-function showDissolvePanel() { showToast('融合分析功能'); }
+function showOverlayPanel() {
+  if (state.layers.length < 2) {
+    showToast('至少需要2个图层进行叠加分析', 'error');
+    return;
+  }
+  const idx = prompt('选择图层1的索引 (0-' + (state.layers.length-1) + '):', '0');
+  if (idx === null) return;
+  const idx2 = prompt('选择图层2的索引:', '1');
+  if (idx2 === null) return;
+  const i = parseInt(idx), j = parseInt(idx2);
+  if (isNaN(i) || isNaN(j) || i === j) { showToast('请选择不同的图层', 'error'); return; }
+  const l1 = state.layers[i], l2 = state.layers[j];
+  try {
+    const result = turf.overlap(l1.featureCollection, l2.featureCollection);
+    if (result && result.features.length > 0) {
+      addGeoJSONLayer(result, '叠加结果: ' + l1.name + '∩' + l2.name, '#ff6b6b');
+      showToast('叠加完成: ' + result.features.length + ' 个重叠要素');
+    } else {
+      showToast('没有重叠区域', 'info');
+    }
+  } catch(e) { showToast('叠加失败: ' + e.message, 'error'); }
+}
+
+function showClipPanel() {
+  if (state.layers.length < 2) {
+    showToast('至少需要2个图层进行裁剪分析', 'error');
+    return;
+  }
+  const idx = prompt('选择被裁剪图层 (0-' + (state.layers.length-1) + '):', '0');
+  if (idx === null) return;
+  const clipIdx = prompt('选择裁剪边界图层:', '1');
+  if (clipIdx === null) return;
+  const i = parseInt(idx), j = parseInt(clipIdx);
+  if (isNaN(i) || isNaN(j)) { showToast('请选择不同的图层', 'error'); return; }
+  try {
+    const result = turf.clip(state.layers[i].featureCollection, state.layers[j].featureCollection);
+    if (result.features.length > 0) {
+      addGeoJSONLayer(result, '裁剪结果: ' + state.layers[i].name, '#4ecdc4');
+      showToast('裁剪完成: ' + result.features.length + ' 个要素');
+    } else {
+      showToast('裁剪后无要素', 'info');
+    }
+  } catch(e) { showToast('裁剪失败: ' + e.message, 'error'); }
+}
+
+function showIntersectPanel() {
+  if (state.layers.length < 2) {
+    showToast('至少需要2个图层进行相交分析', 'error');
+    return;
+  }
+  const idx = prompt('选择图层1 (0-' + (state.layers.length-1) + '):', '0');
+  if (idx === null) return;
+  const idx2 = prompt('选择图层2:', '1');
+  if (idx2 === null) return;
+  const i = parseInt(idx), j = parseInt(idx2);
+  if (isNaN(i) || isNaN(j) || i === j) { showToast('请选择不同的图层', 'error'); return; }
+  try {
+    const result = turf.intersect(state.layers[i].featureCollection, state.layers[j].featureCollection);
+    if (result) {
+      addGeoJSONLayer(result, '相交结果: ' + state.layers[i].name + '∧' + state.layers[j].name, '#ffe66d');
+      showToast('相交完成');
+    } else {
+      showToast('没有相交区域', 'info');
+    }
+  } catch(e) { showToast('相交失败: ' + e.message, 'error'); }
+}
+
+function showUnionPanel() {
+  if (state.layers.length < 2) {
+    showToast('至少需要2个图层进行合并分析', 'error');
+    return;
+  }
+  const idx = prompt('选择图层1 (0-' + (state.layers.length-1) + '):', '0');
+  if (idx === null) return;
+  const idx2 = prompt('选择图层2:', '1');
+  if (idx2 === null) return;
+  const i = parseInt(idx), j = parseInt(idx2);
+  if (isNaN(i) || isNaN(j) || i === j) { showToast('请选择不同的图层', 'error'); return; }
+  try {
+    const result = turf.union(state.layers[i].featureCollection, state.layers[j].featureCollection);
+    if (result) {
+      addGeoJSONLayer(result, '合并结果: ' + state.layers[i].name + '+' + state.layers[j].name, '#a8e6cf');
+      showToast('合并完成');
+    }
+  } catch(e) { showToast('合并失败: ' + e.message, 'error'); }
+}
+
+function showDissolvePanel() {
+  if (state.layers.length < 1) {
+    showToast('至少需要1个图层进行融合分析', 'error');
+    return;
+  }
+  const idx = prompt('选择图层 (0-' + (state.layers.length-1) + '):', '0');
+  if (idx === null) return;
+  const i = parseInt(idx);
+  if (isNaN(i)) { showToast('请选择图层', 'error'); return; }
+  const layer = state.layers[i];
+  const props = Object.keys(layer.featureCollection.features[0]?.properties || {});
+  const field = prompt('按哪个字段融合 (可选: ' + props.join(', ') + '):', props[0] || '');
+  if (field === null) return;
+  try {
+    const result = turf.dissolve(layer.featureCollection, field);
+    if (result) {
+      addGeoJSONLayer(result, '融合结果: ' + layer.name + ' (按' + field + ')', '#ddA0C6');
+      showToast('融合完成: ' + result.features.length + ' 个融合要素');
+    }
+  } catch(e) { showToast('融合失败: ' + e.message, 'error'); }
+}
 
 function startEdit() {
   if (state.selectedLayerIndex === undefined) {
     showToast('请先选择一个图层', 'error');
     return;
   }
-  showToast('编辑模式: 点击要素进行编辑');
+  state.editMode = true;
+  state.editLayerIndex = state.selectedLayerIndex;
+  document.getElementById('map').style.cursor = 'crosshair';
+  showToast('编辑模式: 点击要素拖动顶点编辑');
 }
 
 function deleteSelected() {
-  if (state.selectedLayerIndex !== undefined) {
-    removeLayerItem(state.selectedLayerIndex);
-    state.selectedLayerIndex = undefined;
-  } else {
+  if (state.selectedLayerIndex === undefined) {
     showToast('请先选择要删除的图层', 'error');
+    return;
   }
+  if (!confirm('确定删除图层 "' + state.layers[state.selectedLayerIndex].name + '" ?')) return;
+  removeLayerItem(state.selectedLayerIndex);
+  state.selectedLayerIndex = undefined;
+  showToast('图层已删除');
 }
 
 /* =====================================================
