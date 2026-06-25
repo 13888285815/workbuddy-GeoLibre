@@ -1,114 +1,809 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoLibre Web GIS</title>
-    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<!-- zzx@yndxw.com -->
+<!-- Open Graph 基础标签 -->
+<meta property="og:title" content="意念地球 - 云原生GIS平台" />
+<meta property="og:description" content="免费在线GIS地图浏览、标注、分析，支持多种数据格式" />
+<meta property="og:image" content="https://raw.githubusercontent.com/opengeos/GeoLibre/main/apps/geolibre-desktop/public/favicon.png" />
+<meta property="og:url" content="https://opengeos.github.io/GeoLibre/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="意念地球" />
+<!-- Twitter Card 标签 -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="意念地球 - 云原生GIS平台" />
+<meta name="twitter:description" content="免费在线GIS地图浏览、标注、分析，支持多种数据格式" />
+<meta name="twitter:image" content="https://raw.githubusercontent.com/opengeos/GeoLibre/main/apps/geolibre-desktop/public/favicon.png" />
+<!-- 微信特定标签 -->
+<meta name="description" content="免费在线GIS地图浏览、标注、分析，支持多种数据格式" />
+<meta name="keywords" content="GIS,地图,意念地球,GeoLibre,地理信息,空间分析" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>意念地球 - 云原生GIS平台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+<style>
+/* ============ 全局基础样式 ============ */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;width:100%;overflow:hidden}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:linear-gradient(145deg,#0f1639 0%,#121e54 40%,#161a3c 100%);color:#e6e8f5;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;border:none;outline:none;background:none;color:inherit}
+/* ============ CSS变量 - 统一布局尺寸 ============ */
+:root{
+  --top-bar-height:56px;
+  --toolbar-height:56px;
+  --status-bar-height:46px;
+  --sidebar-width:280px;
+  --sidebar-width-min:240px;
+  --right-panel-width:320px;
+  --z-sidebar:200;
+  --z-toolbar:150;
+  --z-topbar:100;
+  --z-modal:1000;
+  --z-toast:3000;
+}
+/* ============ 容器基础布局 ============ */
+.container{display:flex;flex-direction:column;width:100vw;height:100vh;max-width:100vw;max-height:100vh;overflow:hidden}
+/* ============ 顶部栏 (搜索区 + 功能区入口) ============ */
+.top-bar{
+  flex-shrink:0;
+  height:var(--top-bar-height);
+  background:rgba(12,21,55,.94);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  display:flex;
+  align-items:center;
+  padding:0 20px;
+  gap:16px;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);
+  z-index:var(--z-topbar);
+}
+.top-bar .logo{display:flex;align-items:center;gap:10px;color:#f8f9fc;font-size:16px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.top-bar .logo i{font-size:22px;color:#7c5dfc}
+.top-bar .logo span{color:#8f98c8;font-size:12px;font-weight:400}
+.search-global{position:relative;flex:1;min-width:0;max-width:480px}
+.search-global input{width:100%;padding:10px 14px 10px 40px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(18,29,70,.9);color:#f4f6ff;font-size:14px;transition:all .2s}
+.search-global input:focus{border-color:#7c5dfc;box-shadow:0 0 0 3px rgba(124,93,252,.12)}
+.search-global i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#8f98c8;font-size:14px}
+.user-area{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.user-area .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#7c5dfc,#5b3de8);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;box-shadow:0 6px 18px rgba(124,93,252,.25)}
+.menu-toggle{display:none;width:40px;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);color:#c7d1f4;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.menu-toggle:hover{background:rgba(124,93,252,.1);color:#fff}
+/* ============ 主内容区域 (Flex布局自动分配空间) ============ */
+.main{
+  display:flex;
+  flex:1;
+  min-height:0;
+  overflow:hidden;
+}
+/* ============ 侧边栏 (树形结构目录) ============ */
+.sidebar{
+  flex-shrink:0;
+  width:var(--sidebar-width);
+  min-width:var(--sidebar-width-min);
+  background:rgba(10,18,46,.96);
+  border-right:1px solid rgba(255,255,255,.06);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  box-shadow:4px 0 20px rgba(0,0,0,.1);
+  transition:width .3s ease,margin .3s ease;
+}
+.sidebar.hidden{width:0;min-width:0;border-right:none;overflow:hidden}
+.sidebar-header{padding:16px 18px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0}
+.sidebar-header h3{font-size:13px;color:#f2f5ff;letter-spacing:.02em;font-weight:600}
+.sidebar-header .count{font-size:11px;color:#9aabc7;background:rgba(255,255,255,.06);padding:4px 10px;border-radius:999px;font-weight:500}
+.search-box{padding:0 14px 12px;flex-shrink:0}
+.search-box input{width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(22,33,70,.9);color:#eef2ff;font-size:13px;transition:border .2s}
+.search-box input:focus{border-color:#7c5dfc}
+.tree-wrap{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 6px 14px}
+.tree-wrap::-webkit-scrollbar{width:6px}
+.tree-wrap::-webkit-scrollbar-thumb{background:rgba(124,93,252,.3);border-radius:3px}
+.tree-wrap::-webkit-scrollbar-track{background:transparent}
+/* ============ 树形结构样式 ============ */
+.tree-node{position:relative;margin:1px 0}
+.tree-label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:9px 12px;
+  color:#c7d1f4;
+  cursor:pointer;
+  transition:background .15s,color .15s;
+  border-radius:8px;
+  margin:2px 4px;
+  font-size:13px;
+  user-select:none;
+  position:relative;
+  min-height:38px;
+}
+.tree-label:hover{background:rgba(124,93,252,.12);color:#fff}
+.tree-label.active,.tree-label.selected{color:#fff;background:rgba(124,93,252,.32)}
+.tree-arrow{width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:#8f9ecb;transition:transform .2s;font-size:9px;flex-shrink:0}
+.tree-arrow.rotated{transform:rotate(90deg)}
+.tree-arrow.empty{visibility:hidden}
+.tree-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.tree-icon.folder,.tree-icon.level-1{color:#ffd166}
+.tree-icon.file{color:#7c5dfc}
+.tree-icon.level-2{color:#6bb3ff}
+.tree-icon.level-3{color:#8f9cf5}
+.tree-name{flex:1;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;line-height:1.4;font-size:13px}
+.tree-count{font-size:10px;color:#8f98c8;background:rgba(255,255,255,.08);padding:2px 8px;border-radius:10px;flex-shrink:0}
+.tree-children{display:none;flex-direction:column;position:relative}
+.tree-children.open{display:flex}
+.tree-children::before{content:'';position:absolute;left:20px;top:0;bottom:6px;width:1px;background:rgba(255,255,255,.08)}
+.tree-node.level-2>.tree-label{padding-left:28px}
+.tree-node.level-3>.tree-label{padding-left:44px}
+.highlight-match{background:rgba(124,93,252,.45);color:#fff;border-radius:3px;padding:0 2px}
+/* ============ 拖拽分隔条 ============ */
+.splitter-v{width:4px;background:transparent;cursor:col-resize;transition:background .2s;flex-shrink:0}
+.splitter-v:hover{background:rgba(124,93,252,.2)}
+/* ============ 预览区域 (自适应核心) ============ */
+.preview-area{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  position:relative;
+  background:linear-gradient(180deg,rgba(15,21,55,.98),rgba(9,15,38,.98));
+}
+/* ============ 预览工具栏 (功能区) ============ */
+.preview-toolbar{
+  flex-shrink:0;
+  height:var(--toolbar-height);
+  padding:0 16px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:rgba(12,20,49,.96);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+.preview-toolbar::-webkit-scrollbar{height:3px}
+.preview-toolbar::-webkit-scrollbar-thumb{background:rgba(124,93,252,.25);border-radius:2px}
+.tool-group{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.tbtn{width:36px;height:36px;border-radius:10px;border:1px solid transparent;background:rgba(255,255,255,.04);color:#c7d1f4;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;flex-shrink:0;font-size:13px}
+.tbtn:hover{border-color:rgba(124,93,252,.35);background:rgba(124,93,252,.12);color:#fff}
+.tbtn.active{background:#7c5dfc;color:#fff;border-color:#7c5dfc}
+.tool-sep{width:1px;height:24px;background:rgba(255,255,255,.1);flex-shrink:0;margin:0 4px}
+.zoom-info{font-size:12px;color:#9fb4d8;min-width:50px;text-align:center;flex-shrink:0}
+.coord-info{display:flex;align-items:center;gap:8px;margin-left:auto;color:#9fb4d8;font-size:12px;flex-shrink:0}
+.coord-info input{width:80px;padding:7px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(18,28,61,.95);color:#f4f6ff;text-align:center;font-size:12px}
+/* ============ 预览内容区 (浏览区 - 地图) ============ */
+.preview-body{
+  flex:1;
+  min-height:0;
+  display:flex;
+  align-items:stretch;
+  justify-content:stretch;
+  position:relative;
+  overflow:hidden;
+}
+.preview-body::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at top right,rgba(124,93,252,.14),transparent 30%),radial-gradient(circle at bottom left,rgba(49,90,255,.1),transparent 28%);pointer-events:none}
+/* 地图容器 */
+#map{width:100%;height:100%;position:relative}
+.maplibregl-ctrl-group{background:rgba(12,20,49,.96)!important;border:1px solid rgba(255,255,255,.1)!important;border-radius:10px!important}
+.maplibregl-ctrl-group button{background:rgba(255,255,255,.04)!important;color:#c7d1f4!important}
+.maplibregl-ctrl-group button:hover{background:rgba(124,93,252,.12)!important;color:#fff!important}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%;color:#8f9ecb;gap:12px;text-align:center;padding:20px}
+.empty-state i{font-size:56px;opacity:.35}
+.empty-state h3{font-size:16px;color:#a2b0d9;font-weight:500}
+.empty-state p{font-size:13px;color:#7a89b8;max-width:280px;line-height:1.6}
+/* ============ 右侧面板 ============ */
+.right-panel{
+  flex-shrink:0;
+  width:var(--right-panel-width);
+  min-width:280px;
+  background:rgba(8,16,42,.96);
+  border-left:1px solid rgba(255,255,255,.06);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  transition:width .3s,min-width .3s;
+}
+.right-panel.hidden{width:0;min-width:0;border-left:none;overflow:hidden}
+.panel-header{padding:14px 16px;font-size:11px;color:#9aabd9;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:8px;font-weight:500;letter-spacing:.02em}
+.panel-tabs{display:flex;gap:4px;padding:8px 12px;flex-shrink:0}
+.panel-tab{padding:8px 12px;border-radius:8px;background:rgba(255,255,255,.04);color:#9fb4d8;font-size:12px;cursor:pointer;transition:all .15s}
+.panel-tab:hover{background:rgba(124,93,252,.12);color:#fff}
+.panel-tab.active{background:rgba(124,93,252,.25);color:#fff}
+.panel-content{flex:1;min-height:0;overflow-y:auto;padding:12px}
+.panel-content::-webkit-scrollbar{width:6px}
+.panel-content::-webkit-scrollbar-thumb{background:rgba(124,93,252,.3);border-radius:3px}
+/* 图层列表 */
+.layer-item{display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .15s}
+.layer-item:hover{background:rgba(124,93,252,.12)}
+.layer-item.active{background:rgba(124,93,252,.25)}
+.layer-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:#7c5dfc}
+.layer-name{flex:1;font-size:13px;color:#eef2ff}
+.layer-toggle{width:36px;height:20px;border-radius:10px;background:rgba(255,255,255,.1);position:relative;cursor:pointer;transition:background .2s}
+.layer-toggle.on{background:#7c5dfc}
+.layer-toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s}
+.layer-toggle.on::after{left:18px}
+/* ============ 状态栏 ============ */
+.status-bar{
+  flex-shrink:0;
+  height:var(--status-bar-height);
+  padding:0 20px;
+  display:flex;
+  align-items:center;
+  gap:18px;
+  font-size:12px;
+  color:#9fb4d8;
+  background:rgba(12,20,47,.94);
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.status-bar span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:6px}
+.status-dot.offline{background:#f87171}
+/* ============ 加载遮罩 ============ */
+.loading-overlay{position:absolute;inset:0;background:rgba(10,16,40,.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:50}
+.loading-overlay.show{display:flex}
+.loading-spinner{width:42px;height:42px;border:4px solid rgba(124,93,252,.2);border-top-color:#7c5dfc;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:#9fb4d8;font-size:13px}
+/* ============ 模态框 ============ */
+.modal-bg{position:fixed;inset:0;background:rgba(6,11,28,.85);display:none;align-items:center;justify-content:center;z-index:var(--z-modal);padding:20px}
+.modal-bg.show{display:flex}
+.modal-box{width:min(420px,100%);background:rgba(17,25,55,.98);border:1px solid rgba(124,93,252,.25);border-radius:18px;padding:24px;box-shadow:0 30px 90px rgba(0,0,0,.4)}
+.modal-box h3{font-size:17px;color:#fff;margin-bottom:10px;font-weight:600}
+.modal-box p{font-size:13px;color:#a2b0d9;margin-bottom:18px;line-height:1.6}
+.modal-box input{width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(12,21,50,.96);color:#eef2ff;font-size:14px}
+.modal-btns{display:flex;justify-content:flex-end;gap:12px;margin-top:18px}
+.mbtn{padding:10px 18px;border-radius:12px;border:none;cursor:pointer;transition:all .15s;font-size:13px;font-weight:500}
+.mbtn-ok{background:#7c5dfc;color:#fff}
+.mbtn-ok:hover{background:#6b4ae8}
+.mbtn-cancel{background:rgba(255,255,255,.08);color:#d2d8ff}
+.mbtn-cancel:hover{background:rgba(255,255,255,.12)}
+/* ============ Toast提示 ============ */
+.toast{position:fixed;bottom:28px;right:28px;padding:12px 18px;border-radius:12px;background:rgba(124,93,252,.95);color:#fff;font-size:13px;box-shadow:0 20px 60px rgba(18,25,68,.35);opacity:0;transform:translateY(10px);transition:.25s ease;pointer-events:none;z-index:var(--z-toast);max-width:calc(100vw - 56px)}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.error{background:rgba(239,68,68,.95)}
+.toast.success{background:rgba(34,197,94,.95)}
+/* ============ 全屏模式 ============ */
+body.fullscreen .top-bar,
+body.fullscreen .sidebar,
+body.fullscreen .right-panel,
+body.fullscreen .status-bar,
+body.fullscreen .splitter-v{display:none!important}
+body.fullscreen .preview-area{border-radius:0}
+body.fullscreen .preview-toolbar{position:sticky;top:0;z-index:10}
+/* ============ 快捷键提示 ============ */
+.shortcut-hint{position:fixed;bottom:80px;right:28px;background:rgba(17,25,55,.95);border:1px solid rgba(124,93,252,.2);border-radius:14px;padding:14px 18px;font-size:12px;color:#9fb4d8;z-index:2500;display:none;min-width:200px}
+.shortcut-hint.show{display:block}
+.shortcut-row{display:flex;justify-content:space-between;margin-bottom:6px}
+.shortcut-row:last-child{margin-bottom:0}
+.shortcut-key{color:#7c5dfc;font-weight:600}
+/* ============ 移动端适配 ============ */
+@media(max-width:768px){
+  :root{--sidebar-width:260px;--right-panel-width:280px}
+  .top-bar{padding:0 12px;gap:10px}
+  .top-bar .logo span{display:none}
+  .search-global{max-width:200px}
+  .menu-toggle{display:flex}
+  .sidebar{position:fixed;left:0;top:var(--top-bar-height);bottom:var(--status-bar-height);z-index:var(--z-sidebar);transform:translateX(-100%);transition:transform .3s}
+  .sidebar.open{transform:translateX(0)}
+  .right-panel{position:fixed;right:0;top:var(--top-bar-height);bottom:var(--status-bar-height);z-index:var(--z-sidebar);transform:translateX(100%);transition:transform .3s}
+  .right-panel.open{transform:translateX(0)}
+  .preview-toolbar{padding:0 8px;gap:4px}
+  .tbtn{width:32px;height:32px}
+  .coord-info{display:none}
+}
+</style>
 </head>
 <body>
-    <div id="app">
-        <header class="header">
-            <div class="header-left">
-                <h1>🌍 GeoLibre <small>Web GIS</small></h1>
-            </div>
-            <div class="header-center">
-                <div class="search-box">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="searchInput" placeholder="搜索地名..." />
-                </div>
-            </div>
-            <div class="header-right">
-                <div class="status-badge">
-                    <span class="status-dot" id="statusDot"></span>
-                    <span>API: <strong id="apiStatusLabel">检测中...</strong></span>
-                </div>
-                <button class="btn-icon" id="themeToggle" title="切换主题">
-                    <i class="fas fa-moon"></i>
-                </button>
-            </div>
-        </header>
+<div class="container">
+  <!-- 顶部栏 -->
+  <header class="top-bar">
+    <div class="logo">
+      <i class="fas fa-globe-americas"></i>
+      <span>意念地球</span>
+      <small>云原生GIS</small>
+    </div>
+    <div class="search-global">
+      <i class="fas fa-search"></i>
+      <input type="text" id="globalSearch" placeholder="搜索地名、图层、功能..." />
+    </div>
+    <div class="user-area">
+      <button class="tbtn" id="themeToggle" title="切换主题"><i class="fas fa-moon"></i></button>
+      <button class="tbtn" id="fullscreenBtn" title="全屏"><i class="fas fa-expand"></i></button>
+      <button class="tbtn" id="helpBtn" title="快捷键"><i class="fas fa-keyboard"></i></button>
+      <div class="avatar">U</div>
+    </div>
+    <button class="menu-toggle" id="menuToggle"><i class="fas fa-bars"></i></button>
+  </header>
 
-        <div class="main-content">
-            <aside class="sidebar left-sidebar" id="leftSidebar">
-                <div class="sidebar-header">
-                    <h2><i class="fas fa-layer-group"></i> 图层管理</h2>
-                    <button class="btn-icon" id="toggleLeftSidebar" title="收起">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                </div>
-                <div class="sidebar-tabs">
-                    <button class="sidebar-tab active" data-tab="layers">图层</button>
-                    <button class="sidebar-tab" data-tab="add">添加</button>
-                    <button class="sidebar-tab" data-tab="style">样式</button>
-                </div>
-                <div class="tab-panel active" id="tab-layers">
-                    <div class="layer-list" id="layerList">
-                        <div class="layer-empty">
-                            <i class="fas fa-layer-group"></i>
-                            <p>暂无图层</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="tab-panel" id="tab-add">
-                    <div class="add-layer-options">
-                        <button class="add-option" data-type="geojson">
-                            <i class="fas fa-map-marker-alt"></i>
-                            <span>GeoJSON</span>
-                        </button>
-                        <button class="add-option" data-type="tile">
-                            <i class="fas fa-th"></i>
-                            <span>瓦片图层</span>
-                        </button>
-                    </div>
-                    <div class="add-form" id="form-geojson">
-                        <h3>添加 GeoJSON</h3>
-                        <div class="form-group">
-                            <label>图层名称</label>
-                            <input type="text" id="geojsonName" value="标记点" />
-                        </div>
-                        <div class="form-group">
-                            <label>GeoJSON 数据</label>
-                            <textarea id="geojsonData" rows="6">{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[116.4,39.9]},"properties":{"name":"北京"}}]}</textarea>
-                        </div>
-                        <button class="btn btn-primary" id="addGeoJSONBtn">添加图层</button>
-                    </div>
-                    <div class="add-form hidden" id="form-tile">
-                        <h3>添加瓦片图层</h3>
-                        <div class="form-group">
-                            <label>图层名称</label>
-                            <input type="text" id="tileName" value="OpenStreetMap" />
-                        </div>
-                        <div class="form-group">
-                            <label>瓦片 URL</label>
-                            <input type="text" id="tileUrl" value="https://tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                        </div>
-                        <button class="btn btn-primary" id="addTileBtn">添加瓦片</button>
-                    </div>
-                </div>
-                <div class="tab-panel" id="tab-style">
-                    <p>选择图层以编辑样式</p>
-                </div>
-            </aside>
+  <!-- 主内容区 -->
+  <div class="main">
+    <!-- 左侧边栏 - 树形目录 -->
+    <aside class="sidebar" id="leftSidebar">
+      <div class="sidebar-header">
+        <h3><i class="fas fa-folder-tree"></i> 功能目录</h3>
+        <span class="count" id="treeCount">12项</span>
+      </div>
+      <div class="search-box">
+        <input type="text" id="treeSearch" placeholder="搜索功能..." />
+      </div>
+      <div class="tree-wrap" id="treeContainer">
+        <!-- 树形结构由JS动态生成 -->
+      </div>
+    </aside>
 
-            <div class="map-container">
-                <div id="map"></div>
-                <div class="map-coords" id="mapCoords">经度: — 纬度: —</div>
-            </div>
+    <div class="splitter-v" id="leftSplitter"></div>
+
+    <!-- 预览区域 -->
+    <div class="preview-area">
+      <!-- 工具栏 -->
+      <div class="preview-toolbar">
+        <div class="tool-group">
+          <button class="tbtn" id="zoomIn" title="放大"><i class="fas fa-plus"></i></button>
+          <button class="tbtn" id="zoomOut" title="缩小"><i class="fas fa-minus"></i></button>
+          <button class="tbtn" id="zoomReset" title="重置"><i class="fas fa-home"></i></button>
+          <span class="zoom-info" id="zoomLevel">Z: 4</span>
         </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group">
+          <button class="tbtn" id="drawPoint" title="绘制点"><i class="fas fa-map-marker-alt"></i></button>
+          <button class="tbtn" id="drawLine" title="绘制线"><i class="fas fa-route"></i></button>
+          <button class="tbtn" id="drawPoly" title="绘制面"><i class="fas fa-draw-polygon"></i></button>
+          <button class="tbtn" id="measure" title="测量"><i class="fas fa-ruler"></i></button>
+        </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group">
+          <button class="tbtn" id="addLayer" title="添加图层"><i class="fas fa-plus-circle"></i></button>
+          <button class="tbtn" id="importData" title="导入数据"><i class="fas fa-file-import"></i></button>
+          <button class="tbtn" id="exportData" title="导出数据"><i class="fas fa-file-export"></i></button>
+        </div>
+        <div class="coord-info">
+          <span>经度:</span>
+          <input type="text" id="lngInput" value="105.00" readonly />
+          <span>纬度:</span>
+          <input type="text" id="latInput" value="35.00" readonly />
+        </div>
+      </div>
 
-        <footer class="footer">
-            <div class="footer-left">
-                <span class="stat" id="footerCenter">35, 105</span>
-                <span class="stat" id="footerZoom">缩放: 4</span>
-                <span class="stat" id="footerLayers">图层: 0</span>
-            </div>
-        </footer>
+      <!-- 地图浏览区 -->
+      <div class="preview-body">
+        <div id="map"></div>
+      </div>
     </div>
 
-    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-    <script src="js/app.js"></script>
+    <div class="splitter-v" id="rightSplitter"></div>
+
+    <!-- 右侧面板 -->
+    <aside class="right-panel" id="rightPanel">
+      <div class="panel-header">
+        <i class="fas fa-layer-group"></i>
+        <span>图层管理</span>
+        <button class="tbtn" id="toggleRightPanel" title="收起"><i class="fas fa-chevron-right"></i></button>
+      </div>
+      <div class="panel-tabs">
+        <button class="panel-tab active" data-panel="layers">图层</button>
+        <button class="panel-tab" data-panel="style">样式</button>
+        <button class="panel-tab" data-panel="info">信息</button>
+      </div>
+      <div class="panel-content" id="panelContent">
+        <div id="layersPanel">
+          <div class="layer-item active">
+            <div class="layer-icon"><i class="fas fa-map"></i></div>
+            <span class="layer-name">底图 (OSM)</span>
+            <div class="layer-toggle on" data-layer="basemap"></div>
+          </div>
+          <div id="userLayers">
+            <!-- 用户图层由JS动态生成 -->
+          </div>
+        </div>
+        <div id="stylePanel" style="display:none">
+          <p style="color:#9fb4d8;font-size:13px">选择图层后编辑样式</p>
+        </div>
+        <div id="infoPanel" style="display:none">
+          <p style="color:#9fb4d8;font-size:13px">点击地图要素查看信息</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 状态栏 -->
+  <footer class="status-bar">
+    <span><span class="status-dot" id="statusDot"></span>API状态: <strong id="apiStatus">检测中</strong></span>
+    <span>图层: <strong id="layerCount">1</strong></span>
+    <span>中心: <strong id="mapCenter">105.00, 35.00</strong></span>
+    <span style="margin-left:auto">意念地球 v1.0 | Powered by GeoLibre</span>
+  </footer>
+</div>
+
+<!-- 加载遮罩 -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">加载中...</div>
+</div>
+
+<!-- 快捷键提示 -->
+<div class="shortcut-hint" id="shortcutHint">
+  <div class="shortcut-row"><span class="shortcut-key">F</span><span>全屏</span></div>
+  <div class="shortcut-row"><span class="shortcut-key">+/-</span><span>放大/缩小</span></div>
+  <div class="shortcut-row"><span class="shortcut-key">R</span><span>重置视图</span></div>
+  <div class="shortcut-row"><span class="shortcut-key">L</span><span>图层面板</span></div>
+  <div class="shortcut-row"><span class="shortcut-key">S</span><span>侧边栏</span></div>
+  <div class="shortcut-row"><span class="shortcut-key">?</span><span>显示帮助</span></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+// ============ 配置 ============
+const CONFIG = {
+  apiBase: '/api',
+  mapCenter: [105, 35],
+  mapZoom: 4,
+  minZoom: 1,
+  maxZoom: 18
+};
+
+// ============ 状态管理 ============
+const state = {
+  map: null,
+  layers: [],
+  activeTool: null,
+  theme: localStorage.getItem('geolibre_theme') || 'dark',
+  sidebarOpen: true,
+  rightPanelOpen: true
+};
+
+// ============ 功能目录数据 ============
+const catalog = [
+  {
+    label: "基础地图",
+    icon: "fa-map",
+    children: [
+      { label: "底图切换", icon: "fa-layer-group", action: "basemap" },
+      { label: "地图导航", icon: "fa-location-arrow", action: "navigation" },
+      { label: "坐标定位", icon: "fa-crosshairs", action: "locate" },
+      { label: "全屏模式", icon: "fa-expand", action: "fullscreen" }
+    ]
+  },
+  {
+    label: "数据加载",
+    icon: "fa-database",
+    children: [
+      { label: "GeoJSON", icon: "fa-code", action: "geojson" },
+      { label: "矢量瓦片", icon: "fa-vector-square", action: "mvt" },
+      { label: "栅格影像", icon: "fa-image", action: "raster" },
+      { label: "WMS服务", icon: "fa-server", action: "wms" },
+      { label: "本地文件", icon: "fa-file-upload", action: "local" }
+    ]
+  },
+  {
+    label: "绘制编辑",
+    icon: "fa-pencil-alt",
+    children: [
+      { label: "绘制点", icon: "fa-map-marker-alt", action: "drawPoint" },
+      { label: "绘制线", icon: "fa-route", action: "drawLine" },
+      { label: "绘制面", icon: "fa-draw-polygon", action: "drawPoly" },
+      { label: "编辑要素", icon: "fa-edit", action: "edit" },
+      { label: "删除要素", icon: "fa-trash", action: "delete" }
+    ]
+  },
+  {
+    label: "空间分析",
+    icon: "fa-chart-area",
+    children: [
+      { label: "距离测量", icon: "fa-ruler", action: "measureDistance" },
+      { label: "面积测量", icon: "fa-vector-square", action: "measureArea" },
+      { label: "缓冲区分析", icon: "fa-circle", action: "buffer" },
+      { label: "叠加分析", icon: "fa-object-group", action: "overlay" }
+    ]
+  },
+  {
+    label: "样式设置",
+    icon: "fa-palette",
+    children: [
+      { label: "填充颜色", icon: "fa-fill-drip", action: "fillColor" },
+      { label: "边框样式", icon: "fa-border-style", action: "strokeStyle" },
+      { label: "透明度", icon: "fa-adjust", action: "opacity" },
+      { label: "标注设置", icon: "fa-tag", action: "label" }
+    ]
+  },
+  {
+    label: "数据导出",
+    icon: "fa-file-export",
+    children: [
+      { label: "导出GeoJSON", icon: "fa-code", action: "exportGeoJSON" },
+      { label: "导出PNG", icon: "fa-image", action: "exportPNG" },
+      { label: "导出项目", icon: "fa-file-archive", action: "exportProject" }
+    ]
+  }
+];
+
+// ============ 初始化应用 ============
+function initApp() {
+  console.log('🌍 意念地球 初始化...');
+  initTheme();
+  initTree();
+  initMap();
+  initUI();
+  checkAPI();
+  console.log('✅ 意念地球 初始化完成');
+  showToast('意念地球 已加载', 'success');
+}
+
+// ============ 主题初始化 ============
+function initTheme() {
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    themeToggle.innerHTML = state.theme === 'dark'
+      ? '<i class="fas fa-sun"></i>'
+      : '<i class="fas fa-moon"></i>';
+    themeToggle.addEventListener('click', toggleTheme);
+  }
+}
+
+function toggleTheme() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('geolibre_theme', state.theme);
+  document.body.style.background = state.theme === 'dark'
+    ? 'linear-gradient(145deg,#0f1639 0%,#121e54 40%,#161a3c 100%)'
+    : 'linear-gradient(145deg,#f0f4ff 0%,#e8f0ff 40%,#f5f8ff 100%)';
+  document.getElementById('themeToggle').innerHTML = state.theme === 'dark'
+    ? '<i class="fas fa-sun"></i>'
+    : '<i class="fas fa-moon"></i>';
+}
+
+// ============ 树形目录初始化 ============
+function initTree() {
+  const container = document.getElementById('treeContainer');
+  let html = '';
+  catalog.forEach((node, i) => {
+    html += `<div class="tree-node level-1">
+      <div class="tree-label" data-index="${i}" onclick="toggleTree(this)">
+        <span class="tree-arrow"><i class="fas fa-chevron-right"></i></span>
+        <span class="tree-icon folder"><i class="fas ${node.icon}"></i></span>
+        <span class="tree-name">${node.label}</span>
+        <span class="tree-count">${node.children.length}</span>
+      </div>
+      <div class="tree-children" id="tree-children-${i}">`;
+    node.children.forEach((child, j) => {
+      html += `<div class="tree-node level-2">
+        <div class="tree-label" data-action="${child.action}" onclick="handleAction('${child.action}')">
+          <span class="tree-arrow empty"></span>
+          <span class="tree-icon file"><i class="fas ${child.icon}"></i></span>
+          <span class="tree-name">${child.label}</span>
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  container.innerHTML = html;
+  document.getElementById('treeCount').textContent = catalog.length + '项';
+}
+
+function toggleTree(el) {
+  const index = el.dataset.index;
+  const children = document.getElementById('tree-children-' + index);
+  const arrow = el.querySelector('.tree-arrow i');
+  if (children.classList.contains('open')) {
+    children.classList.remove('open');
+    arrow.style.transform = 'rotate(0deg)';
+  } else {
+    children.classList.add('open');
+    arrow.style.transform = 'rotate(90deg)';
+  }
+}
+
+function handleAction(action) {
+  console.log('Action:', action);
+  showToast('功能: ' + action, 'info');
+  // 根据action执行对应功能
+  switch(action) {
+    case 'fullscreen': toggleFullscreen(); break;
+    case 'locate': showLocateModal(); break;
+    case 'basemap': showBasemapModal(); break;
+    case 'drawPoint': setActiveTool('point'); break;
+    case 'drawLine': setActiveTool('line'); break;
+    case 'drawPoly': setActiveTool('polygon'); break;
+    case 'measureDistance': setActiveTool('measure'); break;
+    default: showToast('功能开发中...', 'info');
+  }
+}
+
+// ============ 地图初始化 ============
+function initMap() {
+  state.map = new maplibregl.Map({
+    container: 'map',
+    style: {
+      version: 8,
+      sources: {
+        'osm': {
+          type: 'raster',
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          attribution: '© OpenStreetMap'
+        }
+      },
+      layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+    },
+    center: CONFIG.mapCenter,
+    zoom: CONFIG.mapZoom,
+    minZoom: CONFIG.minZoom,
+    maxZoom: CONFIG.maxZoom
+  });
+
+  state.map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  state.map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+
+  state.map.on('mousemove', (e) => {
+    document.getElementById('lngInput').value = e.lngLat.lng.toFixed(4);
+    document.getElementById('latInput').value = e.lngLat.lat.toFixed(4);
+  });
+
+  state.map.on('moveend', updateMapInfo);
+  state.map.on('zoomend', updateMapInfo);
+  state.map.on('load', () => {
+    updateMapInfo();
+    showToast('地图加载完成', 'success');
+  });
+}
+
+function updateMapInfo() {
+  const zoom = state.map.getZoom().toFixed(1);
+  const center = state.map.getCenter();
+  document.getElementById('zoomLevel').textContent = 'Z: ' + zoom;
+  document.getElementById('mapCenter').textContent = center.lng.toFixed(2) + ', ' + center.lat.toFixed(2);
+}
+
+// ============ UI初始化 ============
+function initUI() {
+  // 工具栏按钮
+  document.getElementById('zoomIn').addEventListener('click', () => state.map.zoomIn());
+  document.getElementById('zoomOut').addEventListener('click', () => state.map.zoomOut());
+  document.getElementById('zoomReset').addEventListener('click', () => {
+    state.map.flyTo({ center: CONFIG.mapCenter, zoom: CONFIG.mapZoom });
+  });
+  document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
+  document.getElementById('helpBtn').addEventListener('click', toggleShortcutHint);
+
+  // 绘制工具
+  document.getElementById('drawPoint').addEventListener('click', () => setActiveTool('point'));
+  document.getElementById('drawLine').addEventListener('click', () => setActiveTool('line'));
+  document.getElementById('drawPoly').addEventListener('click', () => setActiveTool('polygon'));
+  document.getElementById('measure').addEventListener('click', () => setActiveTool('measure'));
+
+  // 侧边栏切换
+  document.getElementById('menuToggle').addEventListener('click', () => {
+    document.getElementById('leftSidebar').classList.toggle('open');
+  });
+  document.getElementById('toggleRightPanel').addEventListener('click', () => {
+    document.getElementById('rightPanel').classList.toggle('hidden');
+  });
+
+  // 面板标签切换
+  document.querySelectorAll('.panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const panel = tab.dataset.panel;
+      document.getElementById('layersPanel').style.display = panel === 'layers' ? 'block' : 'none';
+      document.getElementById('stylePanel').style.display = panel === 'style' ? 'block' : 'none';
+      document.getElementById('infoPanel').style.display = panel === 'info' ? 'block' : 'none';
+    });
+  });
+
+  // 搜索功能
+  document.getElementById('treeSearch').addEventListener('input', (e) => {
+    filterTree(e.target.value);
+  });
+  document.getElementById('globalSearch').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchLocation(e.target.value);
+  });
+
+  // 快捷键
+  document.addEventListener('keydown', handleKeyboard);
+}
+
+function setActiveTool(tool) {
+  state.activeTool = tool;
+  document.querySelectorAll('.tbtn').forEach(btn => btn.classList.remove('active'));
+  const btnId = tool === 'point' ? 'drawPoint' : tool === 'line' ? 'drawLine' : tool === 'polygon' ? 'drawPoly' : 'measure';
+  if (document.getElementById(btnId)) {
+    document.getElementById(btnId).classList.add('active');
+  }
+  showToast('已选择工具: ' + tool, 'info');
+}
+
+function toggleFullscreen() {
+  document.body.classList.toggle('fullscreen');
+  const btn = document.getElementById('fullscreenBtn');
+  btn.innerHTML = document.body.classList.contains('fullscreen')
+    ? '<i class="fas fa-compress"></i>'
+    : '<i class="fas fa-expand"></i>';
+}
+
+function toggleShortcutHint() {
+  document.getElementById('shortcutHint').classList.toggle('show');
+}
+
+function handleKeyboard(e) {
+  if (e.target.tagName === 'INPUT') return;
+  switch(e.key.toLowerCase()) {
+    case 'f': toggleFullscreen(); break;
+    case 'r': state.map.flyTo({ center: CONFIG.mapCenter, zoom: CONFIG.mapZoom }); break;
+    case '+': state.map.zoomIn(); break;
+    case '-': state.map.zoomOut(); break;
+    case 'l': document.getElementById('rightPanel').classList.toggle('hidden'); break;
+    case 's': document.getElementById('leftSidebar').classList.toggle('hidden'); break;
+    case '?': toggleShortcutHint(); break;
+    case 'escape':
+      document.body.classList.remove('fullscreen');
+      document.getElementById('shortcutHint').classList.remove('show');
+      break;
+  }
+}
+
+function filterTree(keyword) {
+  const nodes = document.querySelectorAll('.tree-node');
+  nodes.forEach(node => {
+    const name = node.querySelector('.tree-name').textContent;
+    if (keyword && !name.toLowerCase().includes(keyword.toLowerCase())) {
+      node.style.display = 'none';
+    } else {
+      node.style.display = 'block';
+    }
+  });
+}
+
+function searchLocation(query) {
+  if (!query) return;
+  // 使用Nominatim搜索
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.length > 0) {
+        const result = data[0];
+        state.map.flyTo({
+          center: [parseFloat(result.lon), parseFloat(result.lat)],
+          zoom: 12
+        });
+        showToast('定位到: ' + result.display_name, 'success');
+      } else {
+        showToast('未找到位置', 'error');
+      }
+    })
+    .catch(err => showToast('搜索失败', 'error'));
+}
+
+// ============ API检测 ============
+function checkAPI() {
+  const dot = document.getElementById('statusDot');
+  const status = document.getElementById('apiStatus');
+  fetch(CONFIG.apiBase + '/health')
+    .then(r => r.json())
+    .then(data => {
+      dot.classList.remove('offline');
+      status.textContent = '在线';
+    })
+    .catch(err => {
+      dot.classList.add('offline');
+      status.textContent = '离线';
+    });
+}
+
+// ============ Toast提示 ============
+function showToast(msg, type = 'info') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show ' + type;
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ============ 启动 ============
+document.addEventListener('DOMContentLoaded', initApp);
+</script>
 </body>
 </html>

@@ -16,7 +16,7 @@ import argparse
 import json
 import pathlib
 import sys
-from typing import Any
+from typing import Any, Optional, Union
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
@@ -75,15 +75,15 @@ app.add_middleware(
 class GeoJSONLayer(BaseModel):
     name: str
     data: dict[str, Any]
-    style: dict[str, Any] | None = None
+    style: Optional[dict[str, Any]] = None
 
 
 class TileLayer(BaseModel):
     name: str
     url: str
     tile_size: int = 256
-    attribution: str | None = None
-    style: dict[str, Any] | None = None
+    attribution: Optional[str] = None
+    style: Optional[dict[str, Any]] = None
 
 
 class ProjectState(BaseModel):
