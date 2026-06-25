@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
+<head> 
 <!-- zzx@yndxw.com -->
 <!-- Open Graph 基础标签 -->
-<meta property="og:title" content="意念地球 - 云原生GIS平台" />
+<meta property="og:title" content="意念地球 - 意念地球平台" />
 <meta property="og:description" content="免费在线GIS地图浏览、标注、分析，支持多种数据格式" />
 <meta property="og:image" content="https://raw.githubusercontent.com/opengeos/GeoLibre/main/apps/geolibre-desktop/public/favicon.png" />
 <meta property="og:url" content="https://opengeos.github.io/GeoLibre/" />
@@ -11,7 +11,7 @@
 <meta property="og:site_name" content="意念地球" />
 <!-- Twitter Card 标签 -->
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="意念地球 - 云原生GIS平台" />
+<meta name="twitter:title" content="意念地球 - 意念地球平台" />
 <meta name="twitter:description" content="免费在线GIS地图浏览、标注、分析，支持多种数据格式" />
 <meta name="twitter:image" content="https://raw.githubusercontent.com/opengeos/GeoLibre/main/apps/geolibre-desktop/public/favicon.png" />
 <!-- 微信特定标签 -->
@@ -21,7 +21,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>意念地球 - 云原生GIS平台</title>
+<title>意念地球 - 意念地球平台</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
@@ -303,7 +303,7 @@ body.fullscreen .preview-toolbar{position:sticky;top:0;z-index:10}
     <div class="logo">
       <i class="fas fa-globe-americas"></i>
       <span>意念地球</span>
-      <small>云原生GIS</small>
+      <small>意念地球</small>
     </div>
     <div class="search-global">
       <i class="fas fa-search"></i>
@@ -444,7 +444,8 @@ const CONFIG = {
   mapCenter: [105, 35],
   mapZoom: 4,
   minZoom: 1,
-  maxZoom: 18
+  maxZoom: 18,
+  catalogUrl: './data/catalog.json'
 };
 
 // ============ 状态管理 ============
@@ -457,81 +458,79 @@ const state = {
   rightPanelOpen: true
 };
 
-// ============ 功能目录数据 ============
-const catalog = [
-  {
-    label: "基础地图",
-    icon: "fa-map",
-    children: [
-      { label: "底图切换", icon: "fa-layer-group", action: "basemap" },
-      { label: "地图导航", icon: "fa-location-arrow", action: "navigation" },
-      { label: "坐标定位", icon: "fa-crosshairs", action: "locate" },
-      { label: "全屏模式", icon: "fa-expand", action: "fullscreen" }
-    ]
-  },
-  {
-    label: "数据加载",
-    icon: "fa-database",
-    children: [
-      { label: "GeoJSON", icon: "fa-code", action: "geojson" },
-      { label: "矢量瓦片", icon: "fa-vector-square", action: "mvt" },
-      { label: "栅格影像", icon: "fa-image", action: "raster" },
-      { label: "WMS服务", icon: "fa-server", action: "wms" },
-      { label: "本地文件", icon: "fa-file-upload", action: "local" }
-    ]
-  },
-  {
-    label: "绘制编辑",
-    icon: "fa-pencil-alt",
-    children: [
-      { label: "绘制点", icon: "fa-map-marker-alt", action: "drawPoint" },
-      { label: "绘制线", icon: "fa-route", action: "drawLine" },
-      { label: "绘制面", icon: "fa-draw-polygon", action: "drawPoly" },
-      { label: "编辑要素", icon: "fa-edit", action: "edit" },
-      { label: "删除要素", icon: "fa-trash", action: "delete" }
-    ]
-  },
-  {
-    label: "空间分析",
-    icon: "fa-chart-area",
-    children: [
-      { label: "距离测量", icon: "fa-ruler", action: "measureDistance" },
-      { label: "面积测量", icon: "fa-vector-square", action: "measureArea" },
-      { label: "缓冲区分析", icon: "fa-circle", action: "buffer" },
-      { label: "叠加分析", icon: "fa-object-group", action: "overlay" }
-    ]
-  },
-  {
-    label: "样式设置",
-    icon: "fa-palette",
-    children: [
-      { label: "填充颜色", icon: "fa-fill-drip", action: "fillColor" },
-      { label: "边框样式", icon: "fa-border-style", action: "strokeStyle" },
-      { label: "透明度", icon: "fa-adjust", action: "opacity" },
-      { label: "标注设置", icon: "fa-tag", action: "label" }
-    ]
-  },
-  {
-    label: "数据导出",
-    icon: "fa-file-export",
-    children: [
-      { label: "导出GeoJSON", icon: "fa-code", action: "exportGeoJSON" },
-      { label: "导出PNG", icon: "fa-image", action: "exportPNG" },
-      { label: "导出项目", icon: "fa-file-archive", action: "exportProject" }
-    ]
-  }
-];
+// ============ 全局目录数据 ============
+let catalog = [];
+let catalogConfig = null;
 
 // ============ 初始化应用 ============
-function initApp() {
+async function initApp() {
   console.log('🌍 意念地球 初始化...');
+  
+  // 加载目录配置
+  await loadCatalogConfig();
+  
   initTheme();
-  initTree();
+  await initTree();
+  // 先测试地图源速度，再初始化地图
+  await initMapSources();
   initMap();
   initUI();
   checkAPI();
   console.log('✅ 意念地球 初始化完成');
   showToast('意念地球 已加载', 'success');
+}
+
+// ============ 加载目录配置 ============
+async function loadCatalogConfig() {
+  try {
+    const response = await fetch(CONFIG.catalogUrl);
+    if (!response.ok) throw new Error('Failed to load catalog');
+    
+    catalogConfig = await response.json();
+    catalog = catalogConfig.catalog;
+    
+    // 更新应用名称
+    if (catalogConfig.appName) {
+      document.querySelector('.top-bar .logo span')?.remove();
+      const logo = document.querySelector('.top-bar .logo');
+      if (logo) {
+        logo.innerHTML = logo.innerHTML.replace('意念地球', catalogConfig.appName);
+      }
+    }
+    
+    // 更新默认地图配置
+    if (catalogConfig.defaultConfig) {
+      CONFIG.mapCenter = catalogConfig.defaultConfig.mapCenter || CONFIG.mapCenter;
+      CONFIG.mapZoom = catalogConfig.defaultConfig.mapZoom || CONFIG.mapZoom;
+      CONFIG.minZoom = catalogConfig.defaultConfig.minZoom || CONFIG.minZoom;
+      CONFIG.maxZoom = catalogConfig.defaultConfig.maxZoom || CONFIG.maxZoom;
+    }
+    
+    // 更新地图源
+    if (catalogConfig.basemaps) {
+      mapSources.length = 0;
+      catalogConfig.basemaps.forEach(bm => {
+        mapSources.push({
+          name: bm.name,
+          tiles: [bm.url]
+        });
+      });
+    }
+    
+    console.log('📁 目录配置加载成功:', catalog.length, '个分类');
+  } catch (error) {
+    console.error('❌ 目录配置加载失败:', error);
+    showToast('目录加载失败，使用默认配置', 'error');
+    // 使用内置默认数据
+    catalog = getDefaultCatalog();
+  }
+}
+
+// ============ 默认目录数据（备用） ============
+function getDefaultCatalog() {
+  return [
+    { id: 'basic', label: "基础功能", icon: "fa-cube", children: [] }
+  ];
 }
 
 // ============ 主题初始化 ============
@@ -556,98 +555,367 @@ function toggleTheme() {
     : '<i class="fas fa-moon"></i>';
 }
 
-// ============ 树形目录初始化 ============
-function initTree() {
-  const container = document.getElementById('treeContainer');
-  let html = '';
-  catalog.forEach((node, i) => {
-    html += `<div class="tree-node level-1">
-      <div class="tree-label" data-index="${i}" onclick="toggleTree(this)">
-        <span class="tree-arrow"><i class="fas fa-chevron-right"></i></span>
-        <span class="tree-icon folder"><i class="fas ${node.icon}"></i></span>
-        <span class="tree-name">${node.label}</span>
-        <span class="tree-count">${node.children.length}</span>
-      </div>
-      <div class="tree-children" id="tree-children-${i}">`;
-    node.children.forEach((child, j) => {
-      html += `<div class="tree-node level-2">
-        <div class="tree-label" data-action="${child.action}" onclick="handleAction('${child.action}')">
-          <span class="tree-arrow empty"></span>
-          <span class="tree-icon file"><i class="fas ${child.icon}"></i></span>
-          <span class="tree-name">${child.label}</span>
-        </div>
-      </div>`;
-    });
-    html += `</div></div>`;
+// ============ 高性能树形目录初始化 ============
+// 数据缓存
+const treeCache = {
+  data: null,
+  expanded: new Set(),
+  visibleItems: [],
+  itemHeight: 36,
+  bufferSize: 10
+};
+
+// 异步加载目录数据
+async function loadCatalogData() {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(catalog), 0);
   });
-  container.innerHTML = html;
-  document.getElementById('treeCount').textContent = catalog.length + '项';
 }
 
-function toggleTree(el) {
-  const index = el.dataset.index;
-  const children = document.getElementById('tree-children-' + index);
-  const arrow = el.querySelector('.tree-arrow i');
-  if (children.classList.contains('open')) {
-    children.classList.remove('open');
-    arrow.style.transform = 'rotate(0deg)';
+// 扁平化树数据用于虚拟滚动
+function flattenTree(data, expanded, parentLevel = 0) {
+  const result = [];
+  data.forEach((node, index) => {
+    result.push({
+      ...node,
+      level: parentLevel,
+      isExpanded: expanded.has(index),
+      hasChildren: node.children && node.children.length > 0
+    });
+    if (expanded.has(index) && node.children) {
+      result.push(...flattenTree(node.children, expanded, parentLevel + 1));
+    }
+  });
+  return result;
+}
+
+// 渲染虚拟滚动列表
+function renderVirtualTree() {
+  const container = document.getElementById('treeContainer');
+  const scrollTop = container.scrollTop || 0;
+  const containerHeight = container.clientHeight;
+  
+  const startIndex = Math.max(0, Math.floor(scrollTop / treeCache.itemHeight) - treeCache.bufferSize);
+  const endIndex = Math.min(
+    treeCache.visibleItems.length,
+    Math.ceil((scrollTop + containerHeight) / treeCache.itemHeight) + treeCache.bufferSize
+  );
+  
+  const visibleItems = treeCache.visibleItems.slice(startIndex, endIndex);
+  
+  let html = `<div style="height: ${treeCache.visibleItems.length * treeCache.itemHeight}px; position: relative;">`;
+  
+  visibleItems.forEach((item, i) => {
+    const actualIndex = startIndex + i;
+    const indent = item.level * 20;
+    const paddingLeft = indent + 10;
+    
+    html += `<div class="tree-node level-${item.level + 1}" style="
+      position: absolute;
+      top: ${actualIndex * treeCache.itemHeight}px;
+      left: 0;
+      right: 0;
+      height: ${treeCache.itemHeight}px;
+      display: flex;
+      align-items: center;
+      padding-left: ${paddingLeft}px;
+      cursor: ${item.hasChildren ? 'pointer' : 'pointer'};
+      transition: background 0.15s;
+    "
+    onmouseover="this.style.background='rgba(124,93,252,0.15)'"
+    onmouseout="this.style.background='transparent'"
+    onclick="handleTreeItemClick(${actualIndex}, event)"
+    data-item-index="${actualIndex}"
+    data-action="${item.action || ''}"
+    data-url="${item.url || ''}"
+    data-item-id="${item.id || ''}"
+    ${!item.hasChildren ? `title="${item.description || item.label}"` : ''}
+    >`;
+
+    if (item.hasChildren) {
+      html += `<span class="tree-arrow" onclick="event.stopPropagation();toggleTreeNode(${actualIndex}, event)" style="margin-right: 6px;">
+        <i class="fas fa-chevron-${item.isExpanded ? 'down' : 'right'}" style="font-size: 10px; color: #8f98c8;"></i>
+      </span>`;
+    } else {
+      html += `<span style="width: 16px; margin-right: 6px;"></span>`;
+    }
+    
+    const iconColor = item.url ? '#4ade80' : (item.hasChildren ? '#7c5dfc' : '#5b8def');
+    html += `<span class="tree-icon" style="margin-right: 8px;">
+      <i class="fas ${item.icon}" style="font-size: 13px; color: ${iconColor};"></i>
+    </span>
+    <span class="tree-name" style="flex: 1; font-size: 13px; color: #e6e8f5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.label}</span>`;
+
+    if (item.hasChildren) {
+      html += `<span class="tree-count" style="font-size: 11px; color: #9aabc7; background: rgba(255,255,255,.06); padding: 2px 8px; border-radius: 999px;margin-left:8px">${item.children.length}</span>`;
+    } else if (item.url) {
+      html += `<i class="fas fa-external-link-alt" style="font-size:10px;color:#4ade80;margin-left:8px" title="外部链接"></i>`;
+    }
+
+    html += `</div>`;
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// 切换节点展开/折叠
+function toggleTreeNode(index, event) {
+  if (event) event.stopPropagation();
+  
+  const item = treeCache.visibleItems[index];
+  if (!item.hasChildren) return;
+  
+  const nodeIndex = treeCache.data.findIndex(n => n.label === item.label);
+  
+  if (treeCache.expanded.has(nodeIndex)) {
+    treeCache.expanded.delete(nodeIndex);
   } else {
-    children.classList.add('open');
-    arrow.style.transform = 'rotate(90deg)';
+    treeCache.expanded.add(nodeIndex);
+  }
+  
+  treeCache.visibleItems = flattenTree(treeCache.data, treeCache.expanded);
+  renderVirtualTree();
+}
+
+// 处理树节点点击
+function handleTreeItemClick(index, event) {
+  if (event) event.stopPropagation();
+  
+  const item = treeCache.visibleItems[index];
+  if (!item) return;
+  
+  // 如果有外部链接，直接打开
+  if (item.url) {
+    window.open(item.url, '_blank', 'noopener,noreferrer');
+    showToast(`打开: ${item.label}`, 'info');
+    return;
+  }
+  
+  // 如果有操作，执行操作
+  if (item.action) {
+    handleAction(item.action, item);
+    return;
+  }
+  
+  // 如果有子节点，切换展开状态
+  if (item.hasChildren) {
+    toggleTreeNode(index, event);
   }
 }
 
-function handleAction(action) {
-  console.log('Action:', action);
-  showToast('功能: ' + action, 'info');
-  // 根据action执行对应功能
+// 执行操作
+function handleAction(action, item) {
+  console.log('Action:', action, item);
+  showToast(`${item.label}`, 'info');
+  
   switch(action) {
     case 'fullscreen': toggleFullscreen(); break;
     case 'locate': showLocateModal(); break;
     case 'basemap': showBasemapModal(); break;
+    case 'navigation': 
+      if (state.map) state.map.flyTo({ center: CONFIG.mapCenter, zoom: CONFIG.mapZoom });
+      break;
     case 'drawPoint': setActiveTool('point'); break;
     case 'drawLine': setActiveTool('line'); break;
     case 'drawPoly': setActiveTool('polygon'); break;
     case 'measureDistance': setActiveTool('measure'); break;
+    case 'geojson': showToast('请上传GeoJSON文件', 'info'); break;
+    case 'exportGeoJSON': exportGeoJSON(); break;
+    case 'exportPNG': exportMapPNG(); break;
+    case 'link': if (item.url) window.open(item.url, '_blank'); break;
     default: showToast('功能开发中...', 'info');
   }
 }
 
-// ============ 地图初始化 ============
+// 导出GeoJSON
+function exportGeoJSON() {
+  if (!state.map) return;
+  const features = [];
+  state.map.eachLayer(layer => {
+    if (layer.feature) features.push(layer.feature);
+  });
+  if (features.length === 0) {
+    showToast('没有可导出的数据', 'error');
+    return;
+  }
+  const geojson = { type: 'FeatureCollection', features };
+  const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'geolibre-export.geojson';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('GeoJSON已导出', 'success');
+}
+
+// 导出PNG
+function exportMapPNG() {
+  if (!state.map) return;
+  const canvas = state.map.getCanvas();
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'geolibre-map.png';
+  a.click();
+  showToast('地图截图已导出', 'success');
+}
+
+// 初始化树形目录
+async function initTree() {
+  treeCache.data = await loadCatalogData();
+  treeCache.visibleItems = flattenTree(treeCache.data, treeCache.expanded);
+  
+  document.getElementById('treeCount').textContent = treeCache.data.length + '项';
+  renderVirtualTree();
+  
+  // 滚动时使用节流渲染
+  const container = document.getElementById('treeContainer');
+  let ticking = false;
+  container.addEventListener('scroll', () => {
+    if (!ticking) {
+      requestAnimationFrame(() => {
+        renderVirtualTree();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  });
+}
+
+// ============ 多地图源 + 智能选择 ============
+const mapSources = [
+  {
+    name: '高德地图',
+    tiles: [
+      'https://webrd0.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+      'https://webrd1.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
+    ]
+  },
+  {
+    name: 'OpenStreetMap',
+    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']
+  },
+  {
+    name: '天地图',
+    tiles: ['https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=your_token_here']
+  }
+];
+
+let activeMapSource = null;
+let mapSourcePriority = [];
+
+// 测试地图源响应速度
+async function testMapSource(source, timeout = 3000) {
+  return new Promise((resolve) => {
+    const startTime = performance.now();
+    const testUrl = source.tiles[0]
+      .replace('{x}', '1')
+      .replace('{y}', '1')
+      .replace('{z}', '1');
+    
+    const img = new Image();
+    const timer = setTimeout(() => {
+      resolve({ source, success: false, time: timeout });
+    }, timeout);
+    
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve({ source, success: true, time: performance.now() - startTime });
+    };
+    
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve({ source, success: false, time: timeout });
+    };
+    
+    img.src = testUrl;
+  });
+}
+
+// 按速度排序地图源
+async function initMapSources() {
+  const results = await Promise.all(mapSources.map(testMapSource));
+  mapSourcePriority = results
+    .filter(r => r.success)
+    .sort((a, b) => a.time - b.time);
+  
+  if (mapSourcePriority.length > 0) {
+    activeMapSource = mapSourcePriority[0].source;
+    console.log('🏆 最佳地图源:', activeMapSource.name, `(${mapSourcePriority[0].time.toFixed(0)}ms)`);
+  }
+}
+
+// 地图初始化
 function initMap() {
+  // 使用最优地图源
+  const source = activeMapSource || mapSources[0];
+  
+  const mapStyle = {
+    version: 8,
+    sources: {
+      'primary': {
+        type: 'raster',
+        tiles: source.tiles,
+        tileSize: 256
+      }
+    },
+    layers: [
+      {
+        id: 'primary',
+        type: 'raster',
+        source: 'primary',
+        minzoom: 0,
+        maxzoom: 18
+      }
+    ]
+  };
+
   state.map = new maplibregl.Map({
     container: 'map',
-    style: {
-      version: 8,
-      sources: {
-        'osm': {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenStreetMap'
-        }
-      },
-      layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
-    },
+    style: mapStyle,
     center: CONFIG.mapCenter,
     zoom: CONFIG.mapZoom,
     minZoom: CONFIG.minZoom,
-    maxZoom: CONFIG.maxZoom
+    maxZoom: CONFIG.maxZoom,
+    crossSourceErrors: true,
+    fadeDuration: 100,
+    trackResize: true,
+    refreshInterval: Infinity
   });
 
-  state.map.addControl(new maplibregl.NavigationControl(), 'top-right');
-  state.map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+  state.map.on('error', (e) => {
+    console.warn('Map warning:', e.error?.message || 'Tile load error');
+  });
+
+  state.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+  state.map.addControl(new maplibregl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
 
   state.map.on('mousemove', (e) => {
     document.getElementById('lngInput').value = e.lngLat.lng.toFixed(4);
     document.getElementById('latInput').value = e.lngLat.lat.toFixed(4);
   });
 
-  state.map.on('moveend', updateMapInfo);
-  state.map.on('zoomend', updateMapInfo);
+  // 使用节流更新地图信息
+  let updateTicking = false;
+  const throttledUpdate = () => {
+    if (!updateTicking) {
+      requestAnimationFrame(() => {
+        updateMapInfo();
+        preloadAdjacentTiles(state.map);
+        updateTicking = false;
+      });
+      updateTicking = true;
+    }
+  };
+
+  state.map.on('moveend', throttledUpdate);
+  state.map.on('zoomend', throttledUpdate);
   state.map.on('load', () => {
     updateMapInfo();
-    showToast('地图加载完成', 'success');
+    preloadAdjacentTiles(state.map);
+    showToast(`地图加载完成 (${source.name})`, 'success');
   });
 }
 

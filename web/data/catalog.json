@@ -1,0 +1,96 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-06-25",
+  "appName": "意念地球",
+  "catalog": [
+    {
+      "id": "basic-map",
+      "label": "基础地图",
+      "icon": "fa-map",
+      "children": [
+        { "id": "basemap", "label": "底图切换", "icon": "fa-layer-group", "action": "basemap", "url": "", "description": "切换不同地图底图" },
+        { "id": "navigation", "label": "地图导航", "icon": "fa-location-arrow", "action": "navigation", "url": "", "description": "地图导航定位" },
+        { "id": "locate", "label": "坐标定位", "icon": "fa-crosshairs", "action": "locate", "url": "", "description": "通过坐标定位位置" },
+        { "id": "fullscreen", "label": "全屏模式", "icon": "fa-expand", "action": "fullscreen", "url": "", "description": "进入全屏浏览模式" }
+      ]
+    },
+    {
+      "id": "data-load",
+      "label": "数据加载",
+      "icon": "fa-database",
+      "children": [
+        { "id": "geojson", "label": "GeoJSON", "icon": "fa-code", "action": "geojson", "url": "", "description": "加载GeoJSON矢量数据" },
+        { "id": "mvt", "label": "矢量瓦片", "icon": "fa-vector-square", "action": "mvt", "url": "", "description": "加载MapBox矢量瓦片" },
+        { "id": "raster", "label": "栅格影像", "icon": "fa-image", "action": "raster", "url": "", "description": "加载栅格影像数据" },
+        { "id": "wms", "label": "WMS服务", "icon": "fa-server", "action": "wms", "url": "", "description": "连接WMS地图服务" },
+        { "id": "local", "label": "本地文件", "icon": "fa-file-upload", "action": "local", "url": "", "description": "从本地上传数据文件" }
+      ]
+    },
+    {
+      "id": "draw-edit",
+      "label": "绘制编辑",
+      "icon": "fa-pencil-alt",
+      "children": [
+        { "id": "drawPoint", "label": "绘制点", "icon": "fa-map-marker-alt", "action": "drawPoint", "url": "", "description": "在地图上绘制点要素" },
+        { "id": "drawLine", "label": "绘制线", "icon": "fa-route", "action": "drawLine", "url": "", "description": "在地图上绘制线要素" },
+        { "id": "drawPoly", "label": "绘制面", "icon": "fa-draw-polygon", "action": "drawPoly", "url": "", "description": "在地图上绘制面要素" },
+        { "id": "edit", "label": "编辑要素", "icon": "fa-edit", "action": "edit", "url": "", "description": "编辑已有地图要素" },
+        { "id": "delete", "label": "删除要素", "icon": "fa-trash", "action": "delete", "url": "", "description": "删除选中的地图要素" }
+      ]
+    },
+    {
+      "id": "spatial-analysis",
+      "label": "空间分析",
+      "icon": "fa-chart-area",
+      "children": [
+        { "id": "measureDistance", "label": "距离测量", "icon": "fa-ruler", "action": "measureDistance", "url": "", "description": "测量两点间的距离" },
+        { "id": "measureArea", "label": "面积测量", "icon": "fa-vector-square", "action": "measureArea", "url": "", "description": "测量封闭区域的面积" },
+        { "id": "buffer", "label": "缓冲区分析", "icon": "fa-circle", "action": "buffer", "url": "", "description": "生成指定距离的缓冲区" },
+        { "id": "overlay", "label": "叠加分析", "icon": "fa-object-group", "action": "overlay", "url": "", "description": "多图层叠加分析" }
+      ]
+    },
+    {
+      "id": "style-settings",
+      "label": "样式设置",
+      "icon": "fa-palette",
+      "children": [
+        { "id": "fillColor", "label": "填充颜色", "icon": "fa-fill-drip", "action": "fillColor", "url": "", "description": "设置要素填充颜色" },
+        { "id": "strokeStyle", "label": "边框样式", "icon": "fa-border-style", "action": "strokeStyle", "url": "", "description": "设置边框线条样式" },
+        { "id": "opacity", "label": "透明度", "icon": "fa-adjust", "action": "opacity", "url": "", "description": "调整图层透明度" },
+        { "id": "label", "label": "标注设置", "icon": "fa-tag", "action": "label", "url": "", "description": "设置要素标注样式" }
+      ]
+    },
+    {
+      "id": "data-export",
+      "label": "数据导出",
+      "icon": "fa-file-export",
+      "children": [
+        { "id": "exportGeoJSON", "label": "导出GeoJSON", "icon": "fa-code", "action": "exportGeoJSON", "url": "", "description": "导出为GeoJSON格式" },
+        { "id": "exportPNG", "label": "导出PNG", "icon": "fa-image", "action": "exportPNG", "url": "", "description": "导出地图截图PNG" },
+        { "id": "exportProject", "label": "导出项目", "icon": "fa-file-archive", "action": "exportProject", "url": "", "description": "导出完整项目文件" }
+      ]
+    },
+    {
+      "id": "external-links",
+      "label": "外部资源",
+      "icon": "fa-link",
+      "children": [
+        { "id": "osm", "label": "OpenStreetMap", "icon": "fa-globe", "action": "link", "url": "https://www.openstreetmap.org", "description": "开源地图项目" },
+        { "id": "mapbox", "label": "MapBox", "icon": "fa-map-marked", "action": "link", "url": "https://www.mapbox.com", "description": "地图平台服务" },
+        { "id": "geojson-viewer", "label": "GeoJSON预览", "icon": "fa-eye", "action": "link", "url": "https://geojson.io", "description": "在线GeoJSON编辑器" },
+        { "id": "maplibre", "label": "MapLibre文档", "icon": "fa-book", "action": "link", "url": "https://maplibre.org", "description": "MapLibre GL JS官方文档" }
+      ]
+    }
+  ],
+  "basemaps": [
+    { "name": "CartoDB Positron", "url": "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png" },
+    { "name": "CartoDB Dark", "url": "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png" },
+    { "name": "OpenStreetMap", "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png" }
+  ],
+  "defaultConfig": {
+    "mapCenter": [116.4, 39.9],
+    "mapZoom": 10,
+    "minZoom": 3,
+    "maxZoom": 18
+  }
+}

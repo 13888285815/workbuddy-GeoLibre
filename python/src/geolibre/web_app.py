@@ -373,6 +373,10 @@ if _STATIC_DIR.exists():
         app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
     if img_dir.exists():
         app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
+    if _STATIC_DIR.exists():
+        data_dir = _STATIC_DIR / "data"
+        if data_dir.exists():
+            app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
 
 
 # ── CLI Entry Point ───────────────────────────────────────────────
