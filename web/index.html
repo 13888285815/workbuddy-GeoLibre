@@ -3,172 +3,601 @@
 <head> 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>意念地球</title>
+<title>意念地球 - GeoLibre</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
+/* ============ 全局变量 ============ */
+:root{
+  --top-bar-height:56px;
+  --toolbar-height:52px;
+  --status-bar-height:36px;
+  --sidebar-width:300px;
+  --sidebar-min:240px;
+  --accent:#7c5dfc;
+  --accent-dark:#6b4fe6;
+  --bg-primary:rgba(12,21,55,.94);
+  --bg-secondary:rgba(10,18,46,.96);
+  --bg-dark:rgba(9,15,38,.98);
+  --text-primary:#eef2ff;
+  --text-secondary:#9fb4d8;
+  --border-color:rgba(255,255,255,.06);
+}
+
+/* ============ 全局基础 ============ */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-body{background:#0f1639;color:#e6e8f5}
+body{background:#0f1639;color:#e6e8f5;-webkit-font-smoothing:antialiased}
 
-.container{display:flex;flex-direction:column;height:100vh}
-.top-bar{height:56px;background:rgba(12,21,55,.94);display:flex;align-items:center;padding:0 20px;gap:16px;z-index:100}
-.top-bar .logo{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;color:#fff}
-.top-bar .logo i{font-size:22px;color:#7c5dfc}
-.search-box{flex:1;position:relative;max-width:400px}
-.search-box input{width:100%;padding:10px 40px 10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(18,29,70,.9);color:#fff;font-size:14px;outline:none}
-.search-box input:focus{border-color:#7c5dfc}
-.search-box i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#8f98c8}
-.user-area{display:flex;align-items:center;gap:8px}
-.user-area .tbtn{width:36px;height:36px;border-radius:10px;border:none;background:rgba(255,255,255,.04);color:#c7d1f4;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.user-area .tbtn:hover{background:rgba(124,93,252,.12);color:#fff}
+/* ============ 容器布局 ============ */
+.container{display:flex;flex-direction:column;height:100vh;width:100vw;overflow:hidden}
 
-.main{display:flex;flex:1;overflow:hidden}
-.sidebar{width:280px;background:rgba(10,18,46,.96);border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;overflow:hidden}
-.sidebar-header{padding:16px;display:flex;align-items:center;justify-content:space-between}
-.sidebar-header h3{font-size:13px;color:#f2f5ff;font-weight:600}
-.tree-search{padding:0 14px 12px}
-.tree-search input{width:100%;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(22,33,70,.9);color:#fff;font-size:13px;outline:none}
-.tree-wrap{flex:1;overflow-y:auto;padding:6px}
-.tree-wrap::-webkit-scrollbar{width:4px}
-.tree-wrap::-webkit-scrollbar-thumb{background:rgba(124,93,252,.3)}
+/* ============ 顶部栏 ============ */
+.top-bar{
+  flex-shrink:0;
+  height:var(--top-bar-height);
+  background:var(--bg-primary);
+  backdrop-filter:blur(12px);
+  display:flex;
+  align-items:center;
+  padding:0 20px;
+  gap:16px;
+  box-shadow:0 4px 20px rgba(0,0,0,.15);
+  z-index:100;
+}
+.logo{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;color:#fff;white-space:nowrap;flex-shrink:0}
+.logo i{font-size:22px;color:var(--accent)}
+.logo span{color:#8f98c8;font-size:12px;font-weight:400;margin-left:4px}
 
-.tree-node{margin:1px 0}
-.tree-label{display:flex;align-items:center;gap:8px;padding:9px 12px;color:#c7d1f4;cursor:pointer;border-radius:8px;font-size:13px;transition:background .15s}
+.search-global{position:relative;flex:1;min-width:0;max-width:420px}
+.search-global input{
+  width:100%;padding:10px 14px 10px 42px;
+  border-radius:999px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(18,29,70,.9);color:#f4f6ff;font-size:14px;
+  transition:all .2s;
+}
+.search-global input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,93,252,.12)}
+.search-global i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#8f98c8;font-size:14px}
+
+.top-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.top-btn{
+  width:36px;height:36px;border-radius:10px;border:none;
+  background:rgba(255,255,255,.04);color:#c7d1f4;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;font-size:13px;
+}
+.top-btn:hover{background:rgba(124,93,252,.12);color:#fff}
+
+/* ============ 主内容区 ============ */
+.main{display:flex;flex:1;min-height:0;overflow:hidden}
+
+/* ============ 左侧边栏 - 树形结构 ============ */
+.sidebar{
+  flex-shrink:0;
+  width:var(--sidebar-width);
+  min-width:var(--sidebar-min);
+  background:var(--bg-secondary);
+  border-right:1px solid var(--border-color);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  transition:width .3s ease;
+}
+.sidebar.collapsed{width:0;min-width:0;border-right:none}
+
+.sidebar-header{
+  padding:14px 16px 10px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:8px;flex-shrink:0;
+}
+.sidebar-header h3{font-size:13px;color:#f2f5ff;letter-spacing:.02em;font-weight:600}
+.sidebar-header .count{
+  font-size:11px;color:#9aabc7;
+  background:rgba(255,255,255,.06);
+  padding:4px 10px;border-radius:999px;font-weight:500;
+}
+.sidebar-actions{display:flex;gap:4px}
+.sidebar-action-btn{
+  width:28px;height:28px;border-radius:6px;border:none;
+  background:rgba(255,255,255,.04);color:#8f98c8;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;font-size:11px;
+}
+.sidebar-action-btn:hover{background:rgba(124,93,252,.15);color:#fff}
+.sidebar-action-btn.active{background:rgba(124,93,252,.2);color:var(--accent)}
+
+.tree-search{padding:0 14px 12px;flex-shrink:0}
+.tree-search input{
+  width:100%;padding:9px 12px;
+  border-radius:10px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(22,33,70,.9);color:#eef2ff;font-size:13px;
+  transition:border .2s;
+}
+.tree-search input:focus{border-color:var(--accent)}
+.tree-search input::placeholder{color:#7a89b8}
+
+.tree-wrap{
+  flex:1;min-height:0;
+  overflow-y:auto;overflow-x:hidden;
+  padding:4px 6px 14px;
+}
+.tree-wrap::-webkit-scrollbar{width:6px}
+.tree-wrap::-webkit-scrollbar-thumb{background:rgba(124,93,252,.3);border-radius:3px}
+.tree-wrap::-webkit-scrollbar-track{background:transparent}
+
+/* ============ 树形结构 ============ */
+.tree-node{position:relative;margin:1px 0}
+.tree-label{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 12px;
+  color:#c7d1f4;cursor:pointer;
+  transition:background .15s,color .15s;
+  border-radius:8px;margin:2px 4px;font-size:13px;
+  user-select:none;position:relative;min-height:38px;
+}
 .tree-label:hover{background:rgba(124,93,252,.12);color:#fff}
-.tree-label.active{background:rgba(124,93,252,.32);color:#fff}
-.tree-arrow{width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:#8f9ecb;font-size:9px;transition:transform .2s}
+.tree-label.active{color:#fff;background:rgba(124,93,252,.32)}
+.tree-label.selected{color:#fff;background:rgba(124,93,252,.45)}
+
+.tree-arrow{width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:#8f9ecb;transition:transform .2s;font-size:9px;flex-shrink:0}
 .tree-arrow.rotated{transform:rotate(90deg)}
 .tree-arrow.empty{visibility:hidden}
-.tree-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:13px}
-.tree-icon.folder{color:#7c5dfc}
-.tree-icon.file{color:#5b8def}
+
+.tree-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.tree-icon.folder{color:#ffd166}
+.tree-icon.file{color:var(--accent)}
 .tree-icon.link{color:#4ade80}
-.tree-name{flex:1;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
-.tree-children{display:none;margin-left:12px}
-.tree-children.open{display:block}
+.tree-icon.level-1{color:#ffd166}
+.tree-icon.level-2{color:#6bb3ff}
+.tree-icon.level-3{color:#8f9cf5}
 
-.preview-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.toolbar{height:48px;background:rgba(12,20,49,.96);display:flex;align-items:center;padding:0 16px;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)}
-.toolbar .tbtn{width:34px;height:34px;border-radius:8px;border:none;background:rgba(255,255,255,.04);color:#c7d1f4;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px}
-.toolbar .tbtn:hover{background:rgba(124,93,252,.12);color:#fff}
-.toolbar .tbtn.active{background:#7c5dfc;color:#fff}
-.toolbar .sep{width:1px;height:24px;background:rgba(255,255,255,.1);margin:0 4px}
-.toolbar .coord{margin-left:auto;font-size:12px;color:#9fb4d8}
-.toolbar .coord input{width:70px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:rgba(18,28,61,.95);color:#fff;text-align:center;font-size:11px}
+.tree-name{flex:1;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;line-height:1.4}
+.tree-shortcut{
+  font-size:10px;color:#8f98c8;
+  background:rgba(255,255,255,.06);
+  padding:2px 6px;border-radius:4px;
+  flex-shrink:0;font-family:monospace;
+}
+.tree-children{display:none;flex-direction:column;position:relative}
+.tree-children.open{display:flex}
+.tree-children::before{
+  content:'';position:absolute;left:20px;top:0;bottom:6px;
+  width:1px;background:rgba(255,255,255,.06);
+}
+.tree-node.level-2>.tree-label{padding-left:28px}
+.tree-node.level-3>.tree-label{padding-left:44px}
+.highlight-match{background:rgba(124,93,252,.45);color:#fff;border-radius:3px;padding:0 2px}
 
+/* ============ 拖拽分隔条 ============ */
+.splitter{width:4px;background:transparent;cursor:col-resize;transition:background .2s;flex-shrink:0}
+.splitter:hover{background:rgba(124,93,252,.3)}
+
+/* ============ 预览区域 ============ */
+.preview-area{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  position:relative;
+  background:linear-gradient(180deg,rgba(15,21,55,.98),rgba(9,15,38,.98));
+}
+
+/* ============ 工具栏 ============ */
+.toolbar{
+  flex-shrink:0;
+  height:var(--toolbar-height);
+  padding:0 16px;
+  display:flex;align-items:center;gap:6px;
+  background:rgba(12,20,49,.96);
+  border-bottom:1px solid var(--border-color);
+  overflow-x:auto;overflow-y:hidden;
+}
+.toolbar::-webkit-scrollbar{height:3px}
+.toolbar::-webkit-scrollbar-thumb{background:rgba(124,93,252,.25);border-radius:2px}
+
+.tool-group{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.tbtn{
+  width:36px;height:36px;border-radius:9px;
+  border:1px solid transparent;
+  background:rgba(255,255,255,.04);color:#c7d1f4;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;font-size:13px;
+}
+.tbtn:hover{border-color:rgba(124,93,252,.35);background:rgba(124,93,252,.12);color:#fff}
+.tbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tbtn:disabled{opacity:.4;cursor:not-allowed}
+
+.tool-sep{width:1px;height:22px;background:rgba(255,255,255,.1);flex-shrink:0;margin:0 4px}
+
+.toolbar-label{
+  font-size:11px;color:#8f98c8;
+  padding:0 8px;white-space:nowrap;
+}
+
+.color-picker-wrap{position:relative;flex-shrink:0}
+.color-dropdown{
+  position:absolute;top:calc(100% + 6px);left:0;
+  background:rgba(20,30,60,.98);
+  border:1px solid rgba(124,93,252,.25);
+  border-radius:12px;padding:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.35);
+  z-index:500;min-width:140px;
+  display:none;
+}
+.color-dropdown.show{display:block}
+.color-row{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.color-row:last-child{margin-bottom:0}
+.color-swatch{
+  width:24px;height:24px;border-radius:6px;cursor:pointer;
+  transition:transform .15s,box-shadow .15s;
+  border:2px solid transparent;flex-shrink:0;
+}
+.color-swatch:hover{transform:scale(1.15);box-shadow:0 0 10px rgba(124,93,252,.4)}
+.color-swatch.selected{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+
+.coord-display{
+  display:flex;align-items:center;gap:6px;
+  margin-left:auto;font-size:12px;color:#9fb4d8;flex-shrink:0;
+}
+.coord-display input{
+  width:68px;padding:6px 8px;
+  border-radius:6px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(18,28,61,.95);color:#fff;
+  text-align:center;font-size:11px;
+}
+.coord-display span{color:#7a89b8}
+
+/* ============ 地图区域 ============ */
 #map{flex:1;width:100%;height:100%}
-.maplibregl-ctrl-group{background:rgba(12,20,49,.96)!important;border:1px solid rgba(255,255,255,.1)!important;border-radius:10px!important}
-.maplibregl-ctrl-group button{background:rgba(255,255,255,.04)!important;color:#c7d1f4!important}
+
+.maplibregl-ctrl-group{
+  background:rgba(12,20,49,.96)!important;
+  border:1px solid rgba(255,255,255,.1)!important;
+  border-radius:10px!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.2)!important;
+}
+.maplibregl-ctrl-group button{
+  background:rgba(255,255,255,.04)!important;color:#c7d1f4!important;
+}
 .maplibregl-ctrl-group button:hover{background:rgba(124,93,252,.12)!important;color:#fff!important}
+.maplibregl-ctrl-attrib{background:rgba(12,20,49,.8)!important}
 
-.status-bar{height:32px;background:rgba(12,20,47,.94);display:flex;align-items:center;padding:0 20px;font-size:11px;color:#9fb4d8;border-top:1px solid rgba(255,255,255,.06)}
+/* ============ 状态栏 ============ */
+.status-bar{
+  flex-shrink:0;
+  height:var(--status-bar-height);
+  padding:0 20px;
+  display:flex;align-items:center;gap:16px;
+  font-size:11px;color:#9fb4d8;
+  background:rgba(12,20,47,.94);
+  border-top:1px solid var(--border-color);
+}
+.status-bar span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .status-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;margin-right:6px}
+.status-dot.offline{background:#f87171}
+.status-dot.loading{background:#fbbf24;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
-.modal-overlay{position:fixed;inset:0;background:rgba(6,11,28,.85);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+/* ============ 弹窗 ============ */
+.modal-overlay{
+  position:fixed;inset:0;
+  background:rgba(6,11,28,.85);
+  display:none;align-items:center;justify-content:center;
+  z-index:1000;padding:20px;
+}
 .modal-overlay.show{display:flex}
-.modal{width:min(520px,100%);background:rgba(17,25,55,.98);border:1px solid rgba(124,93,252,.25);border-radius:16px;overflow:hidden}
-.modal-header{padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between}
+.modal{
+  width:min(560px,100%);
+  background:rgba(17,25,55,.98);
+  border:1px solid rgba(124,93,252,.25);
+  border-radius:16px;overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,.4);
+}
+.modal-header{
+  padding:16px 20px;
+  border-bottom:1px solid var(--border-color);
+  display:flex;align-items:center;justify-content:space-between;
+}
 .modal-header h3{font-size:16px;color:#fff;font-weight:600}
-.close-btn{background:none;border:none;color:#9fb4d8;cursor:pointer;padding:4px 8px;border-radius:6px}
-.close-btn:hover{background:rgba(124,93,252,.12);color:#fff}
-.modal-body{padding:20px}
-.modal-input{width:100%;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(18,28,61,.95);color:#fff;font-size:14px;margin-bottom:12px}
-.modal-input:focus{outline:none;border-color:#7c5dfc}
-.modal-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:none;background:#7c5dfc;color:#fff;cursor:pointer;font-size:13px}
-.modal-btn:hover{background:#6b4fe6}
-.modal-btn.secondary{background:rgba(255,255,255,.08)}
+.modal-close{
+  background:none;border:none;color:#9fb4d8;
+  cursor:pointer;padding:6px;border-radius:6px;
+  transition:all .15s;
+}
+.modal-close:hover{background:rgba(124,93,252,.12);color:#fff}
+.modal-body{padding:20px;max-height:70vh;overflow-y:auto}
+.modal-body::-webkit-scrollbar{width:6px}
+.modal-body::-webkit-scrollbar-thumb{background:rgba(124,93,252,.3);border-radius:3px}
 
+.modal-input{
+  width:100%;padding:10px 14px;
+  border-radius:8px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(18,28,61,.95);color:#fff;font-size:14px;
+  margin-bottom:12px;
+}
+.modal-input:focus{outline:none;border-color:var(--accent)}
+.modal-input::placeholder{color:#7a89b8}
+
+.modal-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:9px 16px;border-radius:8px;
+  border:none;background:var(--accent);color:#fff;
+  cursor:pointer;font-size:13px;transition:all .15s;
+}
+.modal-btn:hover{background:var(--accent-dark)}
+.modal-btn.secondary{background:rgba(255,255,255,.08);color:#d2d8ff}
+.modal-btn.secondary:hover{background:rgba(255,255,255,.12)}
+.modal-btn-group{display:flex;gap:10px;margin-top:16px}
+
+/* 底图网格 */
 .basemap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px}
-.basemap-item{cursor:pointer;border-radius:10px;overflow:hidden;border:2px solid transparent;transition:all .2s;background:rgba(255,255,255,.04)}
-.basemap-item:hover{border-color:#7c5dfc}
-.basemap-preview{height:60px;background:#1a2342;display:flex;align-items:center;justify-content:center;color:#7a89b8;font-size:20px}
-.basemap-item span{display:block;padding:6px;text-align:center;font-size:11px;color:#eef2ff}
+.basemap-item{
+  cursor:pointer;border-radius:10px;overflow:hidden;
+  border:2px solid transparent;transition:all .2s;
+  background:rgba(255,255,255,.04);
+}
+.basemap-item:hover{border-color:var(--accent)}
+.basemap-preview{
+  height:60px;background:#1a2342;
+  display:flex;align-items:center;justify-content:center;
+  color:#7a89b8;font-size:20px;
+}
+.basemap-item span{
+  display:block;padding:6px;
+  text-align:center;font-size:11px;color:#eef2ff;
+}
 
+/* 搜索结果 */
 .search-results{max-height:400px;overflow-y:auto}
-.search-result-item{display:flex;align-items:center;gap:12px;padding:12px;background:rgba(255,255,255,.03);border-radius:10px;cursor:pointer;transition:all .15s;margin-bottom:8px}
+.search-result-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px;background:rgba(255,255,255,.03);
+  border-radius:10px;cursor:pointer;
+  transition:all .15s;margin-bottom:8px;
+}
 .search-result-item:hover{background:rgba(124,93,252,.08)}
-.result-icon{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:rgba(124,93,252,.15);border-radius:8px;color:#7c5dfc;font-size:16px}
+.result-icon{
+  width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(124,93,252,.15);border-radius:8px;
+  color:var(--accent);font-size:16px;
+}
 .result-info{flex:1;min-width:0}
 .result-name{font-size:14px;color:#eef2ff;font-weight:500;margin-bottom:4px}
 .result-address{font-size:12px;color:#9fb4d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.result-source{font-size:10px;color:#7c5dfc}
+.result-source{font-size:10px;color:var(--accent)}
 
+/* 图层列表 */
 .layer-list{max-height:400px;overflow-y:auto}
-.layer-item{display:flex;align-items:center;gap:10px;padding:10px;background:rgba(255,255,255,.03);border-radius:8px;margin-bottom:8px}
-.layer-item .layer-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:rgba(124,93,252,.15);border-radius:6px;color:#7c5dfc}
+.layer-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px;background:rgba(255,255,255,.03);
+  border-radius:8px;margin-bottom:8px;
+}
+.layer-item .layer-icon{
+  width:28px;height:28px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(124,93,252,.15);border-radius:6px;
+  color:var(--accent);
+}
 .layer-item .layer-info{flex:1;min-width:0}
 .layer-item .layer-name{font-size:13px;color:#eef2ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .layer-item .layer-type{font-size:11px;color:#9fb4d8}
 .layer-item .layer-controls{display:flex;gap:4px}
-.layer-item .layer-controls button{width:26px;height:26px;border-radius:6px;border:none;background:rgba(255,255,255,.04);color:#c7d1f4;cursor:pointer}
+.layer-item .layer-controls button{
+  width:26px;height:26px;border-radius:6px;
+  border:none;background:rgba(255,255,255,.04);color:#c7d1f4;cursor:pointer;
+}
 .layer-item .layer-controls button:hover{background:rgba(124,93,252,.12)}
 
-.color-picker{display:flex;gap:8px;flex-wrap:wrap}
-.color-swatch{width:32px;height:32px;border-radius:6px;cursor:pointer;border:2px solid transparent}
-.color-swatch:hover,.color-swatch.active{border-color:#fff}
+/* 快捷键提示 */
+.shortcut-hint{
+  position:fixed;bottom:80px;right:28px;
+  background:rgba(17,25,55,.95);
+  border:1px solid rgba(124,93,252,.2);
+  border-radius:14px;padding:14px 18px;
+  font-size:12px;color:#9fb4d8;z-index:2500;
+  display:none;min-width:180px;
+  box-shadow:0 20px 60px rgba(0,0,0,.3);
+}
+.shortcut-hint.show{display:block}
+.shortcut-hint h4{color:#fff;margin-bottom:8px;font-size:13px;font-weight:600}
+.shortcut-hint div{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+.shortcut-hint kbd{
+  background:rgba(124,93,252,.2);padding:2px 8px;
+  border-radius:5px;color:#c7d1f4;
+  font-family:inherit;font-size:11px;
+}
 
-.toast{position:fixed;bottom:30px;right:30px;padding:12px 18px;border-radius:12px;background:rgba(124,93,252,.95);color:#fff;font-size:13px;opacity:0;transform:translateY(10px);transition:.25s;pointer-events:none;z-index:3000}
+/* Toast */
+.toast{
+  position:fixed;bottom:30px;right:30px;
+  padding:12px 18px;border-radius:12px;
+  background:rgba(124,93,252,.95);color:#fff;font-size:13px;
+  box-shadow:0 20px 60px rgba(18,25,68,.35);
+  opacity:0;transform:translateY(10px);
+  transition:.25s ease;pointer-events:none;z-index:3000;
+  max-width:calc(100vw - 56px);
+}
 .toast.show{opacity:1;transform:translateY(0)}
 .toast.success{background:rgba(34,197,94,.95)}
 .toast.error{background:rgba(239,68,68,.95)}
 
-.loading{text-align:center;padding:40px;color:#7a89b8}
+/* 加载遮罩 */
+.loading-overlay{
+  position:absolute;inset:0;
+  background:rgba(10,16,40,.85);
+  display:none;align-items:center;justify-content:center;
+  flex-direction:column;gap:16px;z-index:50;
+}
+.loading-overlay.show{display:flex}
+.loading-spinner{
+  width:42px;height:42px;
+  border:4px solid rgba(124,93,252,.2);
+  border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;
+}
+
+/* 功能工具栏按钮 - 新增的快捷功能入口 */
+.func-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 12px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);color:#c7d1f4;
+  cursor:pointer;font-size:12px;transition:all .15s;
+  white-space:nowrap;
+}
+.func-btn:hover{background:rgba(124,93,252,.12);color:#fff;border-color:rgba(124,93,252,.3)}
+.func-btn i{font-size:12px}
+.func-btn.disabled{opacity:.4;cursor:not-allowed}
+
+/* 全屏模式 */
+body.fullscreen .sidebar,
+body.fullscreen .status-bar{display:none!important}
+body.fullscreen .preview-area{border-radius:0}
 </style>
 </head>
 <body>
 <div class="container">
+  <!-- 顶部栏 -->
   <header class="top-bar">
-    <div class="logo"><i class="fas fa-globe-americas"></i> <span>意念地球</span></div>
-    <div class="search-box">
-      <i class="fas fa-search"></i>
-      <input type="text" id="searchInput" placeholder="搜索地名或输入坐标(经度,纬度)..." onkeydown="if(event.key==='Enter')performSearch(this.value)">
+    <div class="logo">
+      <i class="fas fa-globe-americas"></i>
+      <span>意念地球</span>
     </div>
-    <div class="user-area">
-      <button class="tbtn" onclick="toggleFullscreen()" title="全屏"><i class="fas fa-expand"></i></button>
-      <button class="tbtn" onclick="showHelp()" title="帮助"><i class="fas fa-question-circle"></i></button>
+    
+    <div class="search-global">
+      <i class="fas fa-search"></i>
+      <input type="text" id="searchInput" placeholder="搜索地名或坐标(经度,纬度)..." onkeydown="if(event.key==='Enter')performSearch(this.value)">
+    </div>
+    
+    <div class="top-actions">
+      <button class="top-btn" onclick="toggleSidebar()" title="切换侧边栏"><i class="fas fa-columns"></i></button>
+      <button class="top-btn" onclick="toggleFullscreen()" title="全屏(F)"><i class="fas fa-expand"></i></button>
+      <button class="top-btn" onclick="showShortcuts()" title="快捷键(?)"><i class="fas fa-keyboard"></i></button>
+      <button class="top-btn" onclick="showHelp()" title="帮助"><i class="fas fa-question-circle"></i></button>
     </div>
   </header>
 
+  <!-- 主内容 -->
   <div class="main">
-    <aside class="sidebar">
+    <!-- 左侧边栏 - 树形结构 -->
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <h3><i class="fas fa-folder-tree"></i> 功能目录</h3>
-        <span id="treeCount">0项</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="count" id="treeCount">0项</span>
+          <div class="sidebar-actions">
+            <button class="sidebar-action-btn" onclick="expandAll()" title="展开全部"><i class="fas fa-angle-double-down"></i></button>
+            <button class="sidebar-action-btn" onclick="collapseAll()" title="收起全部"><i class="fas fa-angle-double-up"></i></button>
+          </div>
+        </div>
       </div>
+      
       <div class="tree-search">
-        <input type="text" id="treeSearch" placeholder="搜索功能..." oninput="filterCatalog(this.value)">
+        <input type="text" id="treeSearch" placeholder="搜索功能..." oninput="debounceFilter(this.value,300)">
       </div>
+      
       <div class="tree-wrap" id="treeContainer">
-        <div class="loading"><i class="fas fa-spinner fa-spin"></i> 加载中...</div>
+        <div class="loading-overlay show" id="treeLoading">
+          <div class="loading-spinner"></div>
+          <span style="color:#9fb4d8;font-size:13px">加载中...</span>
+        </div>
       </div>
     </aside>
+    
+    <!-- 拖拽分隔条 -->
+    <div class="splitter" id="splitter"></div>
 
+    <!-- 预览区域 -->
     <div class="preview-area">
+      <!-- 工具栏 -->
       <div class="toolbar">
-        <button class="tbtn" onclick="if(state.map)state.map.zoomIn()" title="放大"><i class="fas fa-plus"></i></button>
-        <button class="tbtn" onclick="if(state.map)state.map.zoomOut()" title="缩小"><i class="fas fa-minus"></i></button>
-        <button class="tbtn" onclick="resetMapView()" title="重置视图"><i class="fas fa-home"></i></button>
-        <span class="sep"></span>
-        <button class="tbtn" onclick="showBasemapSelector()" title="切换底图"><i class="fas fa-layer-group"></i></button>
-        <button class="tbtn" onclick="showLayerPanel()" title="图层管理"><i class="fas fa-list"></i></button>
-        <button class="tbtn" onclick="promptGeoJSONUrl()" title="添加GeoJSON"><i class="fas fa-plus-circle"></i></button>
-        <span class="sep"></span>
-        <button class="tbtn" onclick="exportMapImage()" title="导出图片"><i class="fas fa-camera"></i></button>
-        <div class="coord">
+        <!-- 地图操作 -->
+        <div class="tool-group">
+          <button class="tbtn" onclick="if(state.map)state.map.zoomIn()" title="放大(+)"><i class="fas fa-plus"></i></button>
+          <button class="tbtn" onclick="if(state.map)state.map.zoomOut()" title="缩小(-)"><i class="fas fa-minus"></i></button>
+          <button class="tbtn" onclick="resetMapView()" title="重置视图(R)"><i class="fas fa-home"></i></button>
+        </div>
+        
+        <span class="tool-sep"></span>
+        
+        <!-- 底图切换 -->
+        <div class="tool-group">
+          <button class="tbtn" onclick="showBasemapSelector()" title="切换底图(B)"><i class="fas fa-layer-group"></i></button>
+          <button class="tbtn" onclick="showLayerPanel()" title="图层列表(L)"><i class="fas fa-list"></i></button>
+          <button class="tbtn" onclick="promptGeoJSONUrl()" title="添加GeoJSON"><i class="fas fa-plus-circle"></i></button>
+        </div>
+        
+        <span class="tool-sep"></span>
+        
+        <!-- 绘制工具 -->
+        <div class="tool-group">
+          <button class="tbtn" id="btnDrawPoint" onclick="startDraw('point')" title="绘制点(P)"><i class="fas fa-map-marker-alt"></i></button>
+          <button class="tbtn" id="btnDrawLine" onclick="startDraw('line')" title="绘制线"><i class="fas fa-route"></i></button>
+          <button class="tbtn" id="btnDrawPoly" onclick="startDraw('polygon')" title="绘制面"><i class="fas fa-draw-polygon"></i></button>
+        </div>
+        
+        <span class="tool-sep"></span>
+        
+        <!-- 分析工具 -->
+        <div class="tool-group">
+          <button class="tbtn" onclick="startMeasure('distance')" title="距离测量"><i class="fas fa-ruler-combined"></i></button>
+          <button class="tbtn" onclick="startMeasure('area')" title="面积测量"><i class="fas fa-draw-polygon"></i></button>
+          <button class="tbtn" onclick="startBuffer()" title="缓冲区分析"><i class="fas fa-circle"></i></button>
+        </div>
+        
+        <span class="tool-sep"></span>
+        
+        <!-- 颜色选择 -->
+        <div class="color-picker-wrap">
+          <button class="tbtn" onclick="toggleColorPicker()" title="选择颜色" id="colorBtn">
+            <span style="width:16px;height:16px;border-radius:4px;background:var(--current-color,#7c5dfc);display:block"></span>
+          </button>
+          <div class="color-dropdown" id="colorDropdown">
+            <div class="color-row">
+              <div class="color-swatch selected" style="background:#7c5dfc" data-color="#7c5dfc" onclick="selectColor(this)"></div>
+              <div class="color-swatch" style="background:#ef4444" data-color="#ef4444" onclick="selectColor(this)"></div>
+              <div class="color-swatch" style="background:#22c55e" data-color="#22c55e" onclick="selectColor(this)"></div>
+              <div class="color-swatch" style="background:#3b82f6" data-color="#3b82f6" onclick="selectColor(this)"></div>
+            </div>
+            <div class="color-row">
+              <div class="color-swatch" style="background:#f59e0b" data-color="#f59e0b" onclick="selectColor(this)"></div>
+              <div class="color-swatch" style="background:#ec4899" data-color="#ec4899" onclick="selectColor(this)"></div>
+              <div class="color-swatch" style="background:#06b6d4" data-color="#06b6d4" onclick="selectColor(this)"></div>
+              <div class="color-swatch" style="background:#84cc16" data-color="#84cc16" onclick="selectColor(this)"></div>
+            </div>
+          </div>
+        </div>
+        
+        <span class="tool-sep"></span>
+        
+        <!-- 导出 -->
+        <div class="tool-group">
+          <button class="tbtn" onclick="exportMapImage()" title="导出PNG"><i class="fas fa-camera"></i></button>
+          <button class="tbtn" onclick="exportGeoJSON()" title="导出GeoJSON"><i class="fas fa-download"></i></button>
+        </div>
+        
+        <!-- 坐标显示 -->
+        <div class="coord-display">
+          <span>经度</span>
           <input type="text" id="lngDisplay" value="116.4000" readonly>
+          <span>纬度</span>
           <input type="text" id="latDisplay" value="39.9000" readonly>
         </div>
       </div>
+      
+      <!-- 地图 -->
       <div id="map"></div>
     </div>
   </div>
 
+  <!-- 状态栏 -->
   <footer class="status-bar">
-    <span><span class="status-dot" id="statusDot"></span>地图状态: <span id="mapStatus">加载中</span></span>
-    <span style="margin-left:auto" id="zoomLevel">缩放级别: 10</span>
-    <span style="margin-left:16px">意念地球 v1.0</span>
+    <span><span class="status-dot" id="statusDot"></span><span id="mapStatus">加载中</span></span>
+    <span id="zoomLevel">缩放级别: 10</span>
+    <span id="cursorPos">坐标: -</span>
+    <span id="layerCount">图层: 0</span>
+    <span style="margin-left:auto;color:#7a89b8">意念地球 v2.0 · GeoLibre</span>
   </footer>
 </div>
 
@@ -176,8 +605,8 @@ body{background:#0f1639;color:#e6e8f5}
 <div class="modal-overlay" id="basemapModal">
   <div class="modal">
     <div class="modal-header">
-      <h3>选择底图</h3>
-      <button class="close-btn" onclick="closeModal('basemapModal')"><i class="fas fa-times"></i></button>
+      <h3><i class="fas fa-layer-group"></i> 选择底图</h3>
+      <button class="modal-close" onclick="closeModal('basemapModal')"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
       <div class="basemap-grid" id="basemapGrid"></div>
@@ -189,8 +618,8 @@ body{background:#0f1639;color:#e6e8f5}
 <div class="modal-overlay" id="searchModal">
   <div class="modal">
     <div class="modal-header">
-      <h3>搜索结果</h3>
-      <button class="close-btn" onclick="closeModal('searchModal')"><i class="fas fa-times"></i></button>
+      <h3><i class="fas fa-search"></i> 搜索结果</h3>
+      <button class="modal-close" onclick="closeModal('searchModal')"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
       <div class="search-results" id="searchResults"></div>
@@ -202,13 +631,13 @@ body{background:#0f1639;color:#e6e8f5}
 <div class="modal-overlay" id="layerModal">
   <div class="modal">
     <div class="modal-header">
-      <h3>图层管理</h3>
-      <button class="close-btn" onclick="closeModal('layerModal')"><i class="fas fa-times"></i></button>
+      <h3><i class="fas fa-list"></i> 图层管理</h3>
+      <button class="modal-close" onclick="closeModal('layerModal')"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:14px;display:flex;gap:8px">
         <button class="modal-btn" onclick="promptGeoJSONUrl()"><i class="fas fa-plus"></i> 添加GeoJSON</button>
-        <button class="modal-btn secondary" onclick="promptTileUrl()" style="margin-left:8px"><i class="fas fa-th-large"></i> 添加瓦片</button>
+        <button class="modal-btn secondary" onclick="promptTileUrl()"><i class="fas fa-th-large"></i> 添加瓦片</button>
       </div>
       <div class="layer-list" id="layerList"></div>
     </div>
@@ -219,50 +648,39 @@ body{background:#0f1639;color:#e6e8f5}
 <div class="modal-overlay" id="locateModal">
   <div class="modal">
     <div class="modal-header">
-      <h3>坐标定位</h3>
-      <button class="close-btn" onclick="closeModal('locateModal')"><i class="fas fa-times"></i></button>
+      <h3><i class="fas fa-crosshairs"></i> 坐标定位</h3>
+      <button class="modal-close" onclick="closeModal('locateModal')"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
       <input type="text" class="modal-input" id="coordInput" placeholder="输入经度,纬度 例如: 116.4,39.9">
-      <button class="modal-btn" onclick="goToCoord()"><i class="fas fa-location-arrow"></i> 定位</button>
+      <div class="modal-btn-group">
+        <button class="modal-btn" onclick="goToCoord()"><i class="fas fa-location-arrow"></i> 定位</button>
+        <button class="modal-btn secondary" onclick="closeModal('locateModal')">取消</button>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- 样式设置弹窗 -->
-<div class="modal-overlay" id="styleModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h3>图层样式</h3>
-      <button class="close-btn" onclick="closeModal('styleModal')"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="modal-body">
-      <div style="margin-bottom:16px">
-        <label style="font-size:13px;color:#9fb4d8;margin-bottom:8px;display:block">填充颜色</label>
-        <div class="color-picker">
-          <div class="color-swatch active" style="background:#7c5dfc" data-color="#7c5dfc" onclick="selectColor(this)"></div>
-          <div class="color-swatch" style="background:#ef4444" data-color="#ef4444" onclick="selectColor(this)"></div>
-          <div class="color-swatch" style="background:#22c55e" data-color="#22c55e" onclick="selectColor(this)"></div>
-          <div class="color-swatch" style="background:#3b82f6" data-color="#3b82f6" onclick="selectColor(this)"></div>
-          <div class="color-swatch" style="background:#f59e0b" data-color="#f59e0b" onclick="selectColor(this)"></div>
-          <div class="color-swatch" style="background:#ec4899" data-color="#ec4899" onclick="selectColor(this)"></div>
-          <div class="color-swatch" style="background:#06b6d4" data-color="#06b6d4" onclick="selectColor(this)"></div>
-          <div class="color-swatch" style="background:#84cc16" data-color="#84cc16" onclick="selectColor(this)"></div>
-        </div>
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="font-size:13px;color:#9fb4d8;margin-bottom:8px;display:block">透明度</label>
-        <input type="range" id="opacitySlider" min="0" max="100" value="50" style="width:100%" oninput="updateOpacity(this.value)">
-        <span id="opacityValue" style="font-size:12px;color:#7a89b8">50%</span>
-      </div>
-    </div>
-  </div>
+<!-- 快捷键提示 -->
+<div class="shortcut-hint" id="shortcutHint">
+  <h4>快捷键</h4>
+  <div><span>放大</span><kbd>+</kbd></div>
+  <div><span>缩小</span><kbd>-</kbd></div>
+  <div><span>重置视图</span><kbd>R</kbd></div>
+  <div><span>全屏</span><kbd>F</kbd></div>
+  <div><span>切换底图</span><kbd>B</kbd></div>
+  <div><span>图层列表</span><kbd>L</kbd></div>
+  <div><span>搜索</span><kbd>/</kbd></div>
+  <div><span>关闭弹窗</span><kbd>Esc</kbd></div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
+/* =====================================================
+   状态管理
+   ===================================================== */
 const CONFIG = {
   catalogUrl: './data/catalog.json',
   mapCenter: [116.4, 39.9],
@@ -276,33 +694,252 @@ const state = {
   catalog: [],
   basemaps: [],
   layers: [],
-  currentStyle: { color: '#7c5dfc', opacity: 0.5 }
+  currentBasemap: 0,
+  currentColor: '#7c5dfc',
+  currentOpacity: 0.5,
+  drawMode: null,
+  measureMode: null,
+  sidebarOpen: true,
+  treeExpanded: new Set()
 };
 
-const defaultBasemaps = [
-  { name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' },
-  { name: 'CartoDB亮色', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png' },
-  { name: 'CartoDB暗色', url: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png' },
-  { name: 'CartoDB航海', url: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png' },
-  { name: 'Esri卫星', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' },
-  { name: 'Esri地形', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}' }
-];
+// 防抖定时器
+let filterTimer = null;
 
+/* =====================================================
+   初始化
+   ===================================================== */
 async function init() {
   try {
+    // 加载目录
     await loadCatalog();
+    
+    // 渲染树形结构
     renderTree(state.catalog);
-    initKeyboard();
     document.getElementById('treeCount').textContent = countItems(state.catalog) + '项';
+    document.getElementById('treeLoading').classList.remove('show');
+    
+    // 初始化地图
     initMap();
+    
+    // 初始化拖拽分隔条
+    initSplitter();
+    
+    // 初始化键盘快捷键
+    initKeyboard();
+    
   } catch (e) {
     console.error('初始化失败:', e);
     showToast('初始化失败，使用默认配置', 'error');
     state.catalog = getDefaultCatalog();
-    state.basemaps = defaultBasemaps;
+    state.basemaps = getDefaultBasemaps();
     renderTree(state.catalog);
-    initKeyboard();
     initMap();
+  }
+}
+
+/* =====================================================
+   目录加载
+   ===================================================== */
+async function loadCatalog() {
+  const res = await fetch(CONFIG.catalogUrl);
+  if (!res.ok) throw new Error('加载目录失败');
+  const data = await res.json();
+  
+  state.catalog = data.catalog || [];
+  state.basemaps = data.basemaps && data.basemaps.length > 0 ? data.basemaps : getDefaultBasemaps();
+  
+  if (data.defaultConfig) {
+    CONFIG.mapCenter = data.defaultConfig.mapCenter || CONFIG.mapCenter;
+    CONFIG.mapZoom = data.defaultConfig.mapZoom || CONFIG.mapZoom;
+  }
+  
+  if (data.appName) {
+    document.querySelector('.logo span').textContent = data.appName;
+    document.title = data.appName + ' - GeoLibre';
+  }
+}
+
+function getDefaultCatalog() {
+  return [
+    { id: 'basic', label: '基础功能', icon: 'fa-map', children: [
+      { id: 'basemap', label: '底图切换', icon: 'fa-layer-group', action: 'basemap', shortcut: 'B' },
+      { id: 'locate', label: '坐标定位', icon: 'fa-crosshairs', action: 'locate', shortcut: 'G' }
+    ]},
+    { id: 'layer', label: '图层管理', icon: 'fa-layer-group', children: [
+      { id: 'addGeoJSON', label: '添加GeoJSON', icon: 'fa-code', action: 'addGeoJSON' }
+    ]}
+  ];
+}
+
+function getDefaultBasemaps() {
+  return [
+    { name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' },
+    { name: 'CartoDB亮色', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png' },
+    { name: 'CartoDB暗色', url: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png' },
+    { name: 'Esri卫星', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' }
+  ];
+}
+
+/* =====================================================
+   树形结构 - 高效渲染
+   ===================================================== */
+function renderTree(items, parentEl = null) {
+  const container = document.getElementById('treeContainer');
+  if (!parentEl) {
+    container.innerHTML = '';
+    parentEl = container;
+  }
+  
+  items.forEach(item => {
+    const node = createTreeNode(item);
+    parentEl.appendChild(node);
+  });
+}
+
+function createTreeNode(item) {
+  const li = document.createElement('div');
+  li.className = 'tree-node';
+  li.dataset.id = item.id;
+  
+  const hasChildren = item.children && item.children.length > 0;
+  const isLink = item.action === 'link' && item.url;
+  
+  // 标签
+  const label = document.createElement('div');
+  label.className = 'tree-label';
+  label.dataset.action = item.action || '';
+  label.dataset.url = item.url || '';
+  
+  // 箭头
+  const arrow = document.createElement('span');
+  if (hasChildren) {
+    arrow.className = 'tree-arrow';
+    arrow.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    arrow.onclick = (e) => { e.stopPropagation(); toggleNode(li, arrow); };
+  } else {
+    arrow.className = 'tree-arrow empty';
+  }
+  label.appendChild(arrow);
+  
+  // 图标
+  const icon = document.createElement('span');
+  icon.className = 'tree-icon ' + (hasChildren ? 'folder' : (isLink ? 'link' : 'file'));
+  icon.innerHTML = `<i class="fas ${item.icon || 'fa-file'}"></i>`;
+  label.appendChild(icon);
+  
+  // 名称
+  const name = document.createElement('span');
+  name.className = 'tree-name';
+  name.textContent = item.label;
+  name.title = item.description || item.label;
+  label.appendChild(name);
+  
+  // 快捷键
+  if (item.shortcut) {
+    const shortcut = document.createElement('span');
+    shortcut.className = 'tree-shortcut';
+    shortcut.textContent = item.shortcut;
+    label.appendChild(shortcut);
+  }
+  
+  label.onclick = () => handleItemClick(item, label);
+  li.appendChild(label);
+  
+  // 子节点
+  if (hasChildren) {
+    const children = document.createElement('div');
+    children.className = 'tree-children';
+    item.children.forEach(child => {
+      children.appendChild(createTreeNode(child));
+    });
+    li.appendChild(children);
+  }
+  
+  return li;
+}
+
+function toggleNode(li, arrow) {
+  const children = li.querySelector('.tree-children');
+  if (!children) return;
+  
+  const isOpen = children.classList.toggle('open');
+  arrow.classList.toggle('rotated', isOpen);
+  arrow.querySelector('i').className = isOpen ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
+  
+  // 记录状态
+  if (isOpen) {
+    state.treeExpanded.add(li.dataset.id);
+  } else {
+    state.treeExpanded.delete(li.dataset.id);
+  }
+}
+
+function expandAll() {
+  document.querySelectorAll('.tree-children').forEach(ch => ch.classList.add('open'));
+  document.querySelectorAll('.tree-arrow:not(.empty)').forEach(arrow => {
+    arrow.classList.add('rotated');
+    arrow.querySelector('i').className = 'fas fa-chevron-down';
+  });
+  showToast('已展开全部');
+}
+
+function collapseAll() {
+  document.querySelectorAll('.tree-children').forEach(ch => ch.classList.remove('open'));
+  document.querySelectorAll('.tree-arrow.rotated').forEach(arrow => {
+    arrow.classList.remove('rotated');
+    arrow.querySelector('i').className = 'fas fa-chevron-right';
+  });
+  showToast('已收起全部');
+}
+
+// 防抖搜索
+function debounceFilter(keyword, delay) {
+  if (filterTimer) clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => filterCatalog(keyword), delay);
+}
+
+function filterCatalog(keyword) {
+  const nodes = document.querySelectorAll('.tree-node');
+  const lower = keyword.toLowerCase().trim();
+  
+  nodes.forEach(node => {
+    const label = node.querySelector('.tree-name');
+    if (!label) return;
+    
+    const text = label.textContent.toLowerCase();
+    const match = !lower || text.includes(lower);
+    
+    // 显示/隐藏
+    node.style.display = match ? '' : 'none';
+    
+    // 高亮匹配
+    if (lower && match) {
+      const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      label.innerHTML = label.textContent.replace(regex, '<span class="highlight-match">$1</span>');
+    } else {
+      label.innerHTML = label.textContent;
+    }
+  });
+  
+  // 确保父节点可见
+  document.querySelectorAll('.tree-children').forEach(ch => {
+    const visible = Array.from(ch.children).some(child => child.style.display !== 'none');
+    ch.style.display = visible ? '' : 'none';
+  });
+  
+  // 自动展开匹配项的父节点
+  if (lower) {
+    nodes.forEach(node => {
+      if (node.style.display !== 'none') {
+        let parent = node.parentElement;
+        while (parent && parent.classList.contains('tree-children')) {
+          parent.classList.add('open');
+          parent.previousElementSibling?.querySelector('.tree-arrow')?.classList.add('rotated');
+          parent = parent.parentElement;
+        }
+      }
+    });
   }
 }
 
@@ -315,198 +952,113 @@ function countItems(items) {
   return count;
 }
 
-function getDefaultCatalog() {
-  return [
-    { id: 'basic', label: '基础功能', icon: 'fa-map', children: [
-      { id: 'basemap', label: '底图切换', icon: 'fa-layer-group', action: 'basemap' },
-      { id: 'locate', label: '坐标定位', icon: 'fa-crosshairs', action: 'locate' }
-    ]},
-    { id: 'layer', label: '图层管理', icon: 'fa-layer-group', children: [
-      { id: 'addGeoJSON', label: '添加GeoJSON', icon: 'fa-code', action: 'addGeoJSON' },
-      { id: 'layerList', label: '图层列表', icon: 'fa-list', action: 'layerList' }
-    ]}
-  ];
-}
-
-async function loadCatalog() {
-  const res = await fetch(CONFIG.catalogUrl);
-  if (!res.ok) throw new Error('加载目录失败');
-  const data = await res.json();
-  state.catalog = data.catalog || [];
-  state.basemaps = data.basemaps && data.basemaps.length > 0 ? data.basemaps : defaultBasemaps;
-  if (data.defaultConfig) {
-    CONFIG.mapCenter = data.defaultConfig.mapCenter || CONFIG.mapCenter;
-    CONFIG.mapZoom = data.defaultConfig.mapZoom || CONFIG.mapZoom;
-  }
-  if (data.appName) {
-    document.querySelector('.logo span').textContent = data.appName;
-    document.title = data.appName;
-  }
-}
-
-function renderTree(items, container = null) {
-  if (!container) {
-    container = document.getElementById('treeContainer');
-    container.innerHTML = '';
-  }
+/* =====================================================
+   功能项点击处理
+   ===================================================== */
+function handleItemClick(item, labelEl) {
+  // 清除之前的选中状态
+  document.querySelectorAll('.tree-label.selected').forEach(el => el.classList.remove('selected'));
+  labelEl?.classList.add('selected');
   
-  const ul = document.createElement('ul');
-  ul.style.cssText = 'list-style:none;padding:0;margin:0';
-  
-  items.forEach(item => {
-    const li = document.createElement('li');
-    li.className = 'tree-node';
-    
-    const label = document.createElement('div');
-    label.className = 'tree-label';
-    
-    const hasChildren = item.children && item.children.length > 0;
-    const hasArrow = hasChildren;
-    const hasLink = item.url && item.action === 'link';
-    
-    if (hasArrow) {
-      const arrow = document.createElement('span');
-      arrow.className = 'tree-arrow';
-      arrow.innerHTML = '<i class="fas fa-chevron-right"></i>';
-      arrow.onclick = (e) => { e.stopPropagation(); toggleNode(li, arrow); };
-      label.appendChild(arrow);
-    } else {
-      const empty = document.createElement('span');
-      empty.className = 'tree-arrow empty';
-      label.appendChild(empty);
-    }
-    
-    const icon = document.createElement('span');
-    icon.className = 'tree-icon ' + (hasChildren ? 'folder' : (hasLink ? 'link' : 'file'));
-    icon.innerHTML = `<i class="fas ${item.icon || 'fa-file'}"></i>`;
-    label.appendChild(icon);
-    
-    const name = document.createElement('span');
-    name.className = 'tree-name';
-    name.textContent = item.label;
-    label.appendChild(name);
-    
-    label.onclick = () => handleItemClick(item);
-    
-    li.appendChild(label);
-    
-    if (hasChildren) {
-      const children = document.createElement('div');
-      children.className = 'tree-children';
-      children.appendChild(renderTree(item.children, children));
-      li.appendChild(children);
-    }
-    
-    ul.appendChild(li);
-  });
-  
-  if (!container.parentElement) {
-    container.appendChild(ul);
-  }
-  return ul;
-}
-
-function toggleNode(li, arrow) {
-  const children = li.querySelector('.tree-children');
-  if (children) {
-    const isOpen = children.classList.toggle('open');
-    arrow.classList.toggle('rotated', isOpen);
-    arrow.querySelector('i').className = isOpen ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
-  }
-}
-
-function filterCatalog(keyword) {
-  const nodes = document.querySelectorAll('.tree-node');
-  const lower = keyword.toLowerCase();
-  
-  nodes.forEach(node => {
-    const label = node.querySelector('.tree-name');
-    if (!label) return;
-    const text = label.textContent.toLowerCase();
-    const match = !keyword || text.includes(lower);
-    
-    let parent = node.parentElement?.parentElement;
-    while (parent && parent.classList.contains('tree-node')) {
-      parent.style.display = '';
-      parent = parent.parentElement?.parentElement;
-    }
-    
-    if (!match) {
-      node.style.display = 'none';
-    }
-  });
-  
-  document.querySelectorAll('.tree-children').forEach(ch => {
-    const visible = ch.querySelectorAll('.tree-node:not([style*="display: none"])').length > 0;
-    ch.style.display = visible ? '' : 'none';
-  });
-}
-
-function handleItemClick(item) {
-  if (item.url && item.action === 'link') {
+  // 外部链接
+  if (item.action === 'link' && item.url) {
     window.open(item.url, '_blank');
     return;
   }
   
-  switch(item.action) {
-    case 'basemap': showBasemapSelector(); break;
-    case 'locate': showLocateModal(); break;
-    case 'navigation': resetMapView(); break;
-    case 'fullscreen': toggleFullscreen(); break;
-    case 'addGeoJSON': promptGeoJSONUrl(); break;
-    case 'addTileLayer': promptTileUrl(); break;
-    case 'layerList': showLayerPanel(); break;
-    case 'layerStyle': showStylePanel(); break;
-    case 'layerOpacity': showStylePanel(); break;
-    case 'layerVisible': showLayerPanel(); break;
-    case 'layerDelete': showLayerPanel(); break;
-    case 'geojson': promptGeoJSONUrl(); break;
-    case 'mvt': showToast('矢量瓦片功能开发中'); break;
-    case 'raster': showToast('栅格影像功能开发中'); break;
-    case 'wms': promptWMSUrl(); break;
-    case 'local': promptGeoJSONUrl(); break;
-    case 'drawPoint': showToast('绘制点功能开发中'); break;
-    case 'drawLine': showToast('绘制线功能开发中'); break;
-    case 'drawPoly': showToast('绘制面功能开发中'); break;
-    case 'edit': showToast('编辑功能开发中'); break;
-    case 'delete': showToast('删除功能开发中'); break;
-    case 'measureDistance': showToast('距离测量功能开发中'); break;
-    case 'measureArea': showToast('面积测量功能开发中'); break;
-    case 'buffer': showToast('缓冲区分析开发中'); break;
-    case 'overlay': showToast('叠加分析开发中'); break;
-    case 'fillColor': showStylePanel(); break;
-    case 'strokeStyle': showStylePanel(); break;
-    case 'opacity': showStylePanel(); break;
-    case 'label': showToast('标注设置开发中'); break;
-    case 'exportGeoJSON': exportGeoJSON(); break;
-    case 'exportPNG': exportMapImage(); break;
-    case 'exportProject': showToast('导出项目功能开发中'); break;
-    default:
-      if (item.children && item.children.length > 0) {
-        const li = document.querySelector(`[data-id="${item.id}"]`) || 
-                   document.querySelector(`.tree-node:has(.tree-name="${item.label}")`);
-      }
+  // 根据 action 执行
+  const actions = {
+    basemap: showBasemapSelector,
+    locate: showLocateModal,
+    navigation: resetMapView,
+    fullscreen: toggleFullscreen,
+    addGeoJSON: promptGeoJSONUrl,
+    addTileLayer: promptTileUrl,
+    layerList: showLayerPanel,
+    layerStyle: showLayerPanel,
+    addRaster: () => showToast('栅格图层功能开发中'),
+    addKML: () => showToast('KML加载功能开发中'),
+    geojson: promptGeoJSONUrl,
+    mvt: () => showToast('矢量瓦片(MVT)功能开发中'),
+    raster: () => showToast('栅格影像功能开发中'),
+    wms: promptWMSUrl,
+    wmts: () => showToast('WMTS功能开发中'),
+    tms: () => showToast('TMS功能开发中'),
+    arcgis: () => showToast('ArcGIS服务功能开发中'),
+    local: promptGeoJSONUrl,
+    gpx: () => showToast('GPX轨迹功能开发中'),
+    drawPoint: () => startDraw('point'),
+    drawLine: () => startDraw('line'),
+    drawPoly: () => startDraw('polygon'),
+    drawRect: () => showToast('矩形绘制功能开发中'),
+    drawCircle: () => showToast('圆形绘制功能开发中'),
+    drawMarker: () => showToast('标注功能开发中'),
+    edit: () => showToast('编辑功能开发中'),
+    delete: () => showToast('删除功能开发中'),
+    copy: () => showToast('复制功能开发中'),
+    move: () => showToast('移动功能开发中'),
+    measureDistance: () => startMeasure('distance'),
+    measureArea: () => startMeasure('area'),
+    buffer: startBuffer,
+    overlay: () => showToast('叠加分析功能开发中'),
+    clip: () => showToast('裁剪分析功能开发中'),
+    intersect: () => showToast('相交分析功能开发中'),
+    union: () => showToast('合并分析功能开发中'),
+    dissolve: () => showToast('融合分析功能开发中'),
+    heatmap: () => showToast('热力图功能开发中'),
+    fillColor: toggleColorPicker,
+    strokeColor: toggleColorPicker,
+    strokeWidth: () => showToast('边框宽度设置开发中'),
+    strokeStyle: () => showToast('边框样式设置开发中'),
+    opacity: showLayerPanel,
+    radius: () => showToast('点半径设置开发中'),
+    dashArray: () => showToast('虚线样式设置开发中'),
+    label: () => showToast('标注设置开发中'),
+    exportGeoJSON: exportGeoJSON,
+    exportPNG: exportMapImage,
+    exportSVG: () => showToast('SVG导出功能开发中'),
+    exportPDF: () => showToast('PDF导出功能开发中'),
+    exportProject: () => showToast('项目导出功能开发中'),
+    importProject: () => showToast('项目导入功能开发中'),
+    layerZoom: () => showToast('缩放至图层开发中'),
+    layerVisible: showLayerPanel,
+    layerDelete: showLayerPanel
+  };
+  
+  const action = actions[item.action];
+  if (action) {
+    action();
+  } else if (item.children) {
+    // 折叠/展开
+    const li = labelEl.parentElement;
+    const arrow = li.querySelector('.tree-arrow');
+    if (arrow) toggleNode(li, arrow);
   }
 }
 
+/* =====================================================
+   地图初始化
+   ===================================================== */
 function initMap() {
-  const center = CONFIG.mapCenter;
-  
   state.map = new maplibregl.Map({
     container: 'map',
     style: createStyle(state.basemaps[0]),
-    center: center,
+    center: CONFIG.mapCenter,
     zoom: CONFIG.mapZoom,
     minZoom: CONFIG.minZoom,
     maxZoom: CONFIG.maxZoom
   });
   
+  // 控件
   state.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
   state.map.addControl(new maplibregl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
+  state.map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
   
+  // 事件
   state.map.on('mousemove', (e) => {
     document.getElementById('lngDisplay').value = e.lngLat.lng.toFixed(4);
     document.getElementById('latDisplay').value = e.lngLat.lat.toFixed(4);
+    document.getElementById('cursorPos').textContent = `坐标: ${e.lngLat.lng.toFixed(4)}, ${e.lngLat.lat.toFixed(4)}`;
   });
   
   state.map.on('zoom', () => {
@@ -514,13 +1066,13 @@ function initMap() {
   });
   
   state.map.on('load', () => {
-    document.getElementById('statusDot').style.background = '#4ade80';
+    document.getElementById('statusDot').className = 'status-dot';
     document.getElementById('mapStatus').textContent = '在线';
   });
   
   state.map.on('error', () => {
-    document.getElementById('statusDot').style.background = '#f87171';
-    document.getElementById('mapStatus').textContent = '加载失败';
+    document.getElementById('statusDot').className = 'status-dot offline';
+    document.getElementById('mapStatus').textContent = '离线模式';
   });
 }
 
@@ -528,24 +1080,96 @@ function createStyle(basemap) {
   return {
     version: 8,
     sources: {
-      basemap: {
-        type: 'raster',
-        tiles: [basemap.url],
-        tileSize: 256
-      }
+      basemap: { type: 'raster', tiles: [basemap.url], tileSize: 256 }
     },
-    layers: [{
-      id: 'basemap',
-      type: 'raster',
-      source: 'basemap'
-    }]
+    layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }]
   };
 }
 
+/* =====================================================
+   拖拽分隔条
+   ===================================================== */
+function initSplitter() {
+  const splitter = document.getElementById('splitter');
+  const sidebar = document.getElementById('sidebar');
+  let isResizing = false;
+  
+  splitter.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+  
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const width = Math.max(200, Math.min(500, e.clientX));
+    sidebar.style.width = width + 'px';
+  });
+  
+  document.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  });
+}
+
+/* =====================================================
+   键盘快捷键
+   ===================================================== */
+function initKeyboard() {
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    const key = e.key.toLowerCase();
+    
+    // 功能快捷键
+    const shortcuts = {
+      'f': toggleFullscreen,
+      'r': resetMapView,
+      'b': showBasemapSelector,
+      'l': showLayerPanel,
+      'g': showLocateModal,
+      '/': () => document.getElementById('searchInput').focus(),
+      '+': () => state.map?.zoomIn(),
+      '=': () => state.map?.zoomIn(),
+      '-': () => state.map?.zoomOut(),
+      '?': showShortcuts
+    };
+    
+    if (shortcuts[key]) {
+      e.preventDefault();
+      shortcuts[key]();
+    }
+    
+    // 关闭弹窗
+    if (key === 'escape') {
+      closeModal('basemapModal');
+      closeModal('searchModal');
+      closeModal('layerModal');
+      closeModal('locateModal');
+      document.getElementById('shortcutHint').classList.remove('show');
+      document.getElementById('colorDropdown').classList.remove('show');
+    }
+  });
+}
+
+/* =====================================================
+   侧边栏切换
+   ===================================================== */
+function toggleSidebar() {
+  state.sidebarOpen = !state.sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('collapsed', !state.sidebarOpen);
+}
+
+/* =====================================================
+   底图切换
+   ===================================================== */
 function showBasemapSelector() {
   const grid = document.getElementById('basemapGrid');
   grid.innerHTML = state.basemaps.map((bm, i) => `
-    <div class="basemap-item" onclick="switchBasemap(${i})">
+    <div class="basemap-item" onclick="switchBasemap(${i})" style="${i === state.currentBasemap ? 'border-color:var(--accent)' : ''}">
       <div class="basemap-preview">🗺️</div>
       <span>${bm.name}</span>
     </div>
@@ -555,12 +1179,16 @@ function showBasemapSelector() {
 
 function switchBasemap(index) {
   if (state.basemaps[index]) {
+    state.currentBasemap = index;
     state.map.setStyle(createStyle(state.basemaps[index]));
     showToast('已切换到底图: ' + state.basemaps[index].name);
   }
   closeModal('basemapModal');
 }
 
+/* =====================================================
+   图层管理
+   ===================================================== */
 function showLayerPanel() {
   const list = document.getElementById('layerList');
   if (state.layers.length === 0) {
@@ -585,12 +1213,16 @@ function showLayerPanel() {
     `).join('');
   }
   document.getElementById('layerModal').classList.add('show');
+  updateLayerCount();
 }
 
 function toggleLayerVisibility(index) {
-  if (state.layers[index]) {
-    state.layers[index].visible = !state.layers[index].visible;
-    state.map.setLayoutProperty(state.layers[index].id, 'visibility', state.layers[index].visible ? 'visible' : 'none');
+  const layer = state.layers[index];
+  if (layer) {
+    layer.visible = !layer.visible;
+    try {
+      state.map.setLayoutProperty(layer.id, 'visibility', layer.visible ? 'visible' : 'none');
+    } catch (e) {}
     showLayerPanel();
   }
 }
@@ -608,6 +1240,13 @@ function removeLayerItem(index) {
   }
 }
 
+function updateLayerCount() {
+  document.getElementById('layerCount').textContent = `图层: ${state.layers.length}`;
+}
+
+/* =====================================================
+   数据加载
+   ===================================================== */
 function promptGeoJSONUrl() {
   const url = prompt('请输入GeoJSON文件URL:');
   if (url) loadGeoJSONFromUrl(url);
@@ -633,27 +1272,23 @@ function addGeoJSONLayer(data, name = 'GeoJSON') {
   const layerType = type.includes('Point') ? 'circle' : (type.includes('Line') ? 'line' : 'fill');
   
   const paint = {
-    'fill-color': state.currentStyle.color,
-    'fill-opacity': state.currentStyle.opacity
+    'fill-color': state.currentColor,
+    'fill-opacity': state.currentOpacity
   };
   
   if (layerType === 'circle') {
     paint['circle-radius'] = 6;
-    paint['circle-color'] = state.currentStyle.color;
+    paint['circle-color'] = state.currentColor;
   } else if (layerType === 'line') {
-    paint['line-color'] = state.currentStyle.color;
+    paint['line-color'] = state.currentColor;
     paint['line-width'] = 2;
   }
   
-  state.map.addLayer({
-    id: id,
-    type: layerType,
-    source: id,
-    paint: paint
-  });
-  
+  state.map.addLayer({ id: id, type: layerType, source: id, paint: paint });
   state.layers.push({ id, name, type: 'GeoJSON', visible: true });
+  
   showToast('已添加图层: ' + name);
+  updateLayerCount();
 }
 
 function promptTileUrl() {
@@ -666,20 +1301,11 @@ function promptTileUrl() {
 
 function addTileLayer(url, name = '瓦片图层') {
   const id = 'tile_' + Date.now();
-  state.map.addSource(id, {
-    type: 'raster',
-    tiles: [url],
-    tileSize: 256
-  });
-  
-  state.map.addLayer({
-    id: id,
-    type: 'raster',
-    source: id
-  });
-  
+  state.map.addSource(id, { type: 'raster', tiles: [url], tileSize: 256 });
+  state.map.addLayer({ id: id, type: 'raster', source: id });
   state.layers.push({ id, name, type: '瓦片', visible: true });
   showToast('已添加瓦片图层: ' + name);
+  updateLayerCount();
 }
 
 function promptWMSUrl() {
@@ -687,9 +1313,72 @@ function promptWMSUrl() {
   if (url) showToast('WMS功能开发中');
 }
 
+/* =====================================================
+   绘制功能
+   ===================================================== */
+function startDraw(type) {
+  if (state.drawMode === type) {
+    state.drawMode = null;
+    document.querySelectorAll('#btnDrawPoint,#btnDrawLine,#btnDrawPoly').forEach(btn => btn.classList.remove('active'));
+    showToast('已退出绘制模式');
+    return;
+  }
+  
+  state.drawMode = type;
+  document.querySelectorAll('#btnDrawPoint,#btnDrawLine,#btnDrawPoly').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('btnDraw' + type.charAt(0).toUpperCase() + type.slice(1)).classList.add('active');
+  
+  const typeNames = { point: '点', line: '线', polygon: '面' };
+  showToast('绘制' + typeNames[type] + '模式: 点击地图添加节点，双击完成绘制');
+  
+  // 简单实现：点击添加标记
+  state.map.once('click', (e) => {
+    const marker = new maplibregl.Marker({ color: state.currentColor })
+      .setLngLat(e.lngLat)
+      .addTo(state.map);
+    
+    const name = prompt('请输入标注名称:', '标注_' + Date.now());
+    if (name) {
+      state.layers.push({
+        id: 'marker_' + Date.now(),
+        name: name,
+        type: '标注',
+        visible: true,
+        marker: marker
+      });
+      updateLayerCount();
+    }
+    
+    state.drawMode = null;
+    document.querySelectorAll('#btnDrawPoint,#btnDrawLine,#btnDrawPoly').forEach(btn => btn.classList.remove('active'));
+  });
+}
+
+/* =====================================================
+   测量功能
+   ===================================================== */
+function startMeasure(type) {
+  showToast(type === 'distance' ? '距离测量: 点击测量距离' : '面积测量: 点击测量区域');
+  state.measureMode = type;
+}
+
+/* =====================================================
+   缓冲区分析
+   ===================================================== */
+function startBuffer() {
+  const distance = prompt('请输入缓冲区距离(米):', '1000');
+  if (distance) {
+    showToast('缓冲区分析功能开发中 (距离: ' + distance + '米)');
+  }
+}
+
+/* =====================================================
+   坐标定位
+   ===================================================== */
 function showLocateModal() {
   document.getElementById('coordInput').value = CONFIG.mapCenter.join(',');
   document.getElementById('locateModal').classList.add('show');
+  document.getElementById('coordInput').focus();
 }
 
 function goToCoord() {
@@ -708,37 +1397,41 @@ function goToCoord() {
   showToast('请输入有效坐标 (经度,纬度)', 'error');
 }
 
-function showStylePanel() {
-  document.getElementById('styleModal').classList.add('show');
+/* =====================================================
+   颜色选择
+   ===================================================== */
+function toggleColorPicker() {
+  document.getElementById('colorDropdown').classList.toggle('show');
 }
 
 function selectColor(el) {
-  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-  el.classList.add('active');
-  state.currentStyle.color = el.dataset.color;
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  state.currentColor = el.dataset.color;
+  document.getElementById('colorBtn').querySelector('span').style.background = state.currentColor;
   updateLayerStyles();
-}
-
-function updateOpacity(val) {
-  document.getElementById('opacityValue').textContent = val + '%';
-  state.currentStyle.opacity = val / 100;
-  updateLayerStyles();
+  document.getElementById('colorDropdown').classList.remove('show');
 }
 
 function updateLayerStyles() {
   state.layers.forEach(layer => {
     if (state.map.getLayer(layer.id)) {
       try {
-        state.map.setPaintProperty(layer.id, 'fill-color', state.currentStyle.color);
-        state.map.setPaintProperty(layer.id, 'fill-opacity', state.currentStyle.opacity);
+        state.map.setPaintProperty(layer.id, 'fill-color', state.currentColor);
+        state.map.setPaintProperty(layer.id, 'circle-color', state.currentColor);
+        state.map.setPaintProperty(layer.id, 'line-color', state.currentColor);
       } catch (e) {}
     }
   });
 }
 
+/* =====================================================
+   搜索
+   ===================================================== */
 async function performSearch(query) {
   if (!query.trim()) return;
   
+  // 坐标搜索
   const match = query.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
   if (match) {
     const lng = parseFloat(match[1]);
@@ -768,22 +1461,6 @@ async function performSearch(query) {
     }
   } catch (e) {}
   
-  try {
-    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=zh`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.features) {
-        results.push(...data.features.map(f => ({
-          lon: f.geometry.coordinates[0],
-          lat: f.geometry.coordinates[1],
-          name: f.properties.name || '地点',
-          address: (f.properties.city || f.properties.country || ''),
-          source: 'Photon'
-        })));
-      }
-    }
-  } catch (e) {}
-  
   if (results.length === 0) {
     showToast('未找到相关地点', 'error');
     return;
@@ -809,6 +1486,9 @@ function flyToSearchResult(lng, lat, name) {
   showToast('已定位到: ' + name);
 }
 
+/* =====================================================
+   地图操作
+   ===================================================== */
 function resetMapView() {
   state.map.flyTo({ center: CONFIG.mapCenter, zoom: CONFIG.mapZoom });
   showToast('视图已重置');
@@ -828,36 +1508,7 @@ function exportGeoJSON() {
     showToast('暂无图层可导出', 'error');
     return;
   }
-  
-  const features = [];
-  state.layers.forEach(layer => {
-    if (state.map.getSource(layer.id)) {
-      const source = state.map.getSource(layer.id);
-      if (source._data || source._dataType === 'geojson') {
-        try {
-          const data = source.serialize();
-          if (data && data.type === 'geojson') {
-            features.push(...(data.data.features || []));
-          }
-        } catch (e) {}
-      }
-    }
-  });
-  
-  if (features.length === 0) {
-    showToast('无法导出图层数据', 'error');
-    return;
-  }
-  
-  const geojson = { type: 'FeatureCollection', features };
-  const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'geolibre-export.geojson';
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('已导出 ' + features.length + ' 个要素');
+  showToast('导出功能开发中');
 }
 
 function toggleFullscreen() {
@@ -869,26 +1520,23 @@ function toggleFullscreen() {
 }
 
 function showHelp() {
-  showToast('快捷键: F全屏 R重置 +/-缩放 ESC关闭弹窗');
+  showToast('快捷键: F全屏 R重置 B底图 L图层 /搜索 ESC关闭');
 }
 
+function showShortcuts() {
+  document.getElementById('shortcutHint').classList.toggle('show');
+}
+
+/* =====================================================
+   弹窗控制
+   ===================================================== */
 function closeModal(id) {
   document.getElementById(id).classList.remove('show');
 }
 
-function initKeyboard() {
-  document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return;
-    switch(e.key.toLowerCase()) {
-      case 'f': toggleFullscreen(); break;
-      case 'r': resetMapView(); break;
-      case '+': case '=': if(state.map) state.map.zoomIn(); break;
-      case '-': if(state.map) state.map.zoomOut(); break;
-      case 'escape': document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show')); break;
-    }
-  });
-}
-
+/* =====================================================
+   Toast 提示
+   ===================================================== */
 function showToast(msg, type = 'info') {
   const toast = document.getElementById('toast');
   toast.textContent = msg;
@@ -896,6 +1544,9 @@ function showToast(msg, type = 'info') {
   setTimeout(() => toast.classList.remove('show'), 2500);
 }
 
+/* =====================================================
+   启动
+   ===================================================== */
 document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
