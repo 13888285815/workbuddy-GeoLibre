@@ -265,8 +265,8 @@ body{background:#0f1639;color:#e6e8f5}
 <script>
 const CONFIG = {
   catalogUrl: './data/catalog.json',
-  defaultCenter: [116.4, 39.9],
-  defaultZoom: 10,
+  mapCenter: [116.4, 39.9],
+  mapZoom: 10,
   minZoom: 3,
   maxZoom: 18
 };
@@ -292,15 +292,16 @@ async function init() {
   try {
     await loadCatalog();
     renderTree(state.catalog);
-    initMap();
     initKeyboard();
     document.getElementById('treeCount').textContent = countItems(state.catalog) + '项';
+    initMap();
   } catch (e) {
     console.error('初始化失败:', e);
     showToast('初始化失败，使用默认配置', 'error');
     state.catalog = getDefaultCatalog();
     state.basemaps = defaultBasemaps;
     renderTree(state.catalog);
+    initKeyboard();
     initMap();
   }
 }
@@ -334,8 +335,8 @@ async function loadCatalog() {
   state.catalog = data.catalog || [];
   state.basemaps = data.basemaps && data.basemaps.length > 0 ? data.basemaps : defaultBasemaps;
   if (data.defaultConfig) {
-    CONFIG.defaultCenter = data.defaultConfig.mapCenter || CONFIG.defaultCenter;
-    CONFIG.defaultZoom = data.defaultConfig.mapZoom || CONFIG.defaultZoom;
+    CONFIG.mapCenter = data.defaultConfig.mapCenter || CONFIG.mapCenter;
+    CONFIG.mapZoom = data.defaultConfig.mapZoom || CONFIG.mapZoom;
   }
   if (data.appName) {
     document.querySelector('.logo span').textContent = data.appName;
@@ -489,13 +490,13 @@ function handleItemClick(item) {
 }
 
 function initMap() {
-  const center = CONFIG.defaultCenter;
+  const center = CONFIG.mapCenter;
   
   state.map = new maplibregl.Map({
     container: 'map',
     style: createStyle(state.basemaps[0]),
     center: center,
-    zoom: CONFIG.defaultZoom,
+    zoom: CONFIG.mapZoom,
     minZoom: CONFIG.minZoom,
     maxZoom: CONFIG.maxZoom
   });
@@ -687,7 +688,7 @@ function promptWMSUrl() {
 }
 
 function showLocateModal() {
-  document.getElementById('coordInput').value = CONFIG.defaultCenter.join(',');
+  document.getElementById('coordInput').value = CONFIG.mapCenter.join(',');
   document.getElementById('locateModal').classList.add('show');
 }
 
@@ -809,7 +810,7 @@ function flyToSearchResult(lng, lat, name) {
 }
 
 function resetMapView() {
-  state.map.flyTo({ center: CONFIG.defaultCenter, zoom: CONFIG.defaultZoom });
+  state.map.flyTo({ center: CONFIG.mapCenter, zoom: CONFIG.mapZoom });
   showToast('视图已重置');
 }
 
