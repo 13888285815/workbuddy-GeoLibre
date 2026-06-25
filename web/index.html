@@ -252,6 +252,40 @@ button,input{font:inherit;border:none;outline:none;background:none;color:inherit
 .modal-bg.show{display:flex}
 .modal-box{width:min(420px,100%);background:rgba(17,25,55,.98);border:1px solid rgba(124,93,252,.25);border-radius:18px;padding:24px;box-shadow:0 30px 90px rgba(0,0,0,.4)}
 .modal-box h3{font-size:17px;color:#fff;margin-bottom:10px;font-weight:600}
+/* 底图选择模态框 */
+.modal-overlay{position:fixed;inset:0;background:rgba(6,11,28,.85);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal{width:min(600px,100%);background:rgba(17,25,55,.98);border:1px solid rgba(124,93,252,.25);border-radius:18px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.4)}
+.modal-header{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between}
+.modal-header h3{font-size:16px;color:#fff;font-weight:600}
+.close-btn{background:none;border:none;color:#9fb4d8;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all .15s}
+.close-btn:hover{background:rgba(124,93,252,.12);color:#fff}
+.modal-body{padding:20px}
+.basemap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.basemap-item{cursor:pointer;border-radius:12px;overflow:hidden;border:2px solid transparent;transition:all .2s;background:rgba(255,255,255,.04)}
+.basemap-item:hover{border-color:#7c5dfc;transform:translateY(-2px)}
+.basemap-preview{height:80px;background:#1a2342;display:flex;align-items:center;justify-content:center;color:#7a89b8;font-size:32px}
+.basemap-preview img{width:100%;height:100%;object-fit:cover}
+.basemap-item span{display:block;padding:10px;text-align:center;font-size:13px;color:#eef2ff}
+/* 搜索结果 */
+.search-results{display:flex;flex-direction:column;gap:8px}
+.search-result-item{display:flex;align-items:center;gap:12px;padding:12px;background:rgba(255,255,255,.03);border-radius:10px;cursor:pointer;transition:all .15s;border:1px solid transparent}
+.search-result-item:hover{background:rgba(124,93,252,.08);border-color:rgba(124,93,252,.3)}
+.result-icon{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:rgba(124,93,252,.15);border-radius:8px;color:#7c5dfc;font-size:16px}
+.result-info{flex:1;min-width:0}
+.result-name{font-size:14px;color:#eef2ff;font-weight:500;margin-bottom:4px}
+.result-address{font-size:12px;color:#9fb4d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 图层管理 */
+.layer-actions{display:flex;gap:8px;margin-bottom:16px}
+.layer-list{display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto}
+.layer-list .layer-item{display:flex;align-items:center;gap:10px;padding:12px;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.06)}
+.layer-list .layer-item.hidden{opacity:.5}
+.layer-list .layer-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:rgba(124,93,252,.15);border-radius:8px;color:#7c5dfc;font-size:14px}
+.layer-list .layer-info{flex:1;min-width:0}
+.layer-list .layer-name{font-size:13px;color:#eef2ff;font-weight:500}
+.layer-list .layer-type{font-size:11px;color:#9fb4d8;margin-top:2px}
+.layer-list .layer-controls{display:flex;gap:4px}
+.layer-list .layer-controls .tbtn{width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);border-radius:6px}
+.layer-list .layer-controls .tbtn:hover{background:rgba(124,93,252,.12)}
 .modal-box p{font-size:13px;color:#a2b0d9;margin-bottom:18px;line-height:1.6}
 .modal-box input{width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(12,21,50,.96);color:#eef2ff;font-size:14px}
 .modal-btns{display:flex;justify-content:flex-end;gap:12px;margin-top:18px}
@@ -372,40 +406,6 @@ body.fullscreen .preview-toolbar{position:sticky;top:0;z-index:10}
         <div id="map"></div>
       </div>
     </div>
-
-    <div class="splitter-v" id="rightSplitter"></div>
-
-    <!-- 右侧面板 -->
-    <aside class="right-panel" id="rightPanel">
-      <div class="panel-header">
-        <i class="fas fa-layer-group"></i>
-        <span>图层管理</span>
-        <button class="tbtn" id="toggleRightPanel" title="收起"><i class="fas fa-chevron-right"></i></button>
-      </div>
-      <div class="panel-tabs">
-        <button class="panel-tab active" data-panel="layers">图层</button>
-        <button class="panel-tab" data-panel="style">样式</button>
-        <button class="panel-tab" data-panel="info">信息</button>
-      </div>
-      <div class="panel-content" id="panelContent">
-        <div id="layersPanel">
-          <div class="layer-item active">
-            <div class="layer-icon"><i class="fas fa-map"></i></div>
-            <span class="layer-name">底图 (OSM)</span>
-            <div class="layer-toggle on" data-layer="basemap"></div>
-          </div>
-          <div id="userLayers">
-            <!-- 用户图层由JS动态生成 -->
-          </div>
-        </div>
-        <div id="stylePanel" style="display:none">
-          <p style="color:#9fb4d8;font-size:13px">选择图层后编辑样式</p>
-        </div>
-        <div id="infoPanel" style="display:none">
-          <p style="color:#9fb4d8;font-size:13px">点击地图要素查看信息</p>
-        </div>
-      </div>
-    </aside>
   </div>
 
   <!-- 状态栏 -->
@@ -455,7 +455,9 @@ const state = {
   activeTool: null,
   theme: localStorage.getItem('geolibre_theme') || 'dark',
   sidebarOpen: true,
-  rightPanelOpen: true
+  rightPanelOpen: true,
+  basemaps: [],
+  currentBasemap: null
 };
 
 // ============ 全局目录数据 ============
@@ -471,8 +473,6 @@ async function initApp() {
   
   initTheme();
   await initTree();
-  // 先测试地图源速度，再初始化地图
-  await initMapSources();
   initMap();
   initUI();
   checkAPI();
@@ -508,13 +508,7 @@ async function loadCatalogConfig() {
     
     // 更新地图源
     if (catalogConfig.basemaps) {
-      mapSources.length = 0;
-      catalogConfig.basemaps.forEach(bm => {
-        mapSources.push({
-          name: bm.name,
-          tiles: [bm.url]
-        });
-      });
+      state.basemaps = catalogConfig.basemaps;
     }
     
     console.log('📁 目录配置加载成功:', catalog.length, '个分类');
@@ -567,9 +561,22 @@ const treeCache = {
 
 // 异步加载目录数据
 async function loadCatalogData() {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(catalog), 0);
-  });
+  // catalog 已经在 loadCatalogConfig 中加载
+  if (catalog.length === 0) {
+    // 如果配置加载失败，使用默认数据
+    catalog = [
+      {
+        id: 'basic-map',
+        label: '基础地图',
+        icon: 'fa-map',
+        children: [
+          { id: 'basemap', label: '底图切换', icon: 'fa-layer-group', action: 'basemap', description: '切换不同地图底图' },
+          { id: 'navigation', label: '地图导航', icon: 'fa-location-arrow', action: 'navigation', description: '地图导航定位' }
+        ]
+      }
+    ];
+  }
+  return catalog;
 }
 
 // 扁平化树数据用于虚拟滚动
@@ -716,6 +723,9 @@ function handleAction(action, item) {
     case 'navigation': 
       if (state.map) state.map.flyTo({ center: CONFIG.mapCenter, zoom: CONFIG.mapZoom });
       break;
+    case 'layerList': showLayerManager(); break;
+    case 'addGeoJSON': addGeoJSONLayer(); break;
+    case 'addTileLayer': addTileLayer(); break;
     case 'drawPoint': setActiveTool('point'); break;
     case 'drawLine': setActiveTool('line'); break;
     case 'drawPoly': setActiveTool('polygon'); break;
@@ -725,6 +735,44 @@ function handleAction(action, item) {
     case 'exportPNG': exportMapPNG(); break;
     case 'link': if (item.url) window.open(item.url, '_blank'); break;
     default: showToast('功能开发中...', 'info');
+  }
+}
+
+function showBasemapModal() {
+  const basemaps = state.basemaps || [];
+  if (basemaps.length === 0) {
+    showToast('没有可用的底图', 'error');
+    return;
+  }
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h3>选择底图</h3>
+        <button class="close-btn" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="basemap-grid">
+          ${basemaps.map((bm, i) => `
+            <div class="basemap-item" onclick="switchBasemapFromModal(${i})">
+              <div class="basemap-preview" style="background:url(${bm.url.replace('{z}', '3').replace('{x}', '4').replace('{y}', '2').replace('{quadkey}', 'b2')}) center/cover"></div>
+              <span>${bm.name}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function switchBasemapFromModal(index) {
+  const basemaps = state.basemaps || [];
+  if (index >= 0 && index < basemaps.length) {
+    switchBasemap(basemaps[index]);
+    document.querySelector('.modal-overlay')?.remove();
   }
 }
 
@@ -784,139 +832,131 @@ async function initTree() {
   });
 }
 
-// ============ 多地图源 + 智能选择 ============
-const mapSources = [
-  {
-    name: '高德地图',
-    tiles: [
-      'https://webrd0.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-      'https://webrd1.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
-    ]
-  },
-  {
-    name: 'OpenStreetMap',
-    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']
-  },
-  {
-    name: '天地图',
-    tiles: ['https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=your_token_here']
-  }
-];
-
-let activeMapSource = null;
-let mapSourcePriority = [];
-
-// 测试地图源响应速度
-async function testMapSource(source, timeout = 3000) {
-  return new Promise((resolve) => {
-    const startTime = performance.now();
-    const testUrl = source.tiles[0]
-      .replace('{x}', '1')
-      .replace('{y}', '1')
-      .replace('{z}', '1');
-    
-    const img = new Image();
-    const timer = setTimeout(() => {
-      resolve({ source, success: false, time: timeout });
-    }, timeout);
-    
-    img.onload = () => {
-      clearTimeout(timer);
-      resolve({ source, success: true, time: performance.now() - startTime });
-    };
-    
-    img.onerror = () => {
-      clearTimeout(timer);
-      resolve({ source, success: false, time: timeout });
-    };
-    
-    img.src = testUrl;
-  });
-}
-
-// 按速度排序地图源
-async function initMapSources() {
-  const results = await Promise.all(mapSources.map(testMapSource));
-  mapSourcePriority = results
-    .filter(r => r.success)
-    .sort((a, b) => a.time - b.time);
-  
-  if (mapSourcePriority.length > 0) {
-    activeMapSource = mapSourcePriority[0].source;
-    console.log('🏆 最佳地图源:', activeMapSource.name, `(${mapSourcePriority[0].time.toFixed(0)}ms)`);
-  }
-}
-
-// 地图初始化
+// ============ 地图初始化 ============
 function initMap() {
-  // 使用最优地图源
-  const source = activeMapSource || mapSources[0];
+  const defaultBasemap = state.basemaps && state.basemaps.length > 0 
+    ? state.basemaps[0] 
+    : { name: 'CartoDB', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', type: 'xyz' };
+
+  const mapStyle = createMapStyle(defaultBasemap);
+
+  try {
+    state.map = new maplibregl.Map({
+      container: 'map',
+      style: mapStyle,
+      center: CONFIG.mapCenter,
+      zoom: CONFIG.mapZoom,
+      minZoom: CONFIG.minZoom,
+      maxZoom: CONFIG.maxZoom,
+      crossSourceErrors: true
+    });
+
+    state.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+    state.map.addControl(new maplibregl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
+
+    state.map.on('mousemove', (e) => {
+      if (document.getElementById('lngInput')) {
+        document.getElementById('lngInput').value = e.lngLat.lng.toFixed(4);
+        document.getElementById('latInput').value = e.lngLat.lat.toFixed(4);
+      }
+    });
+
+    state.map.on('moveend', updateMapInfo);
+    state.map.on('zoomend', updateMapInfo);
+    state.map.on('load', () => {
+      updateMapInfo();
+      showToast(`地图加载完成 (${defaultBasemap.name})`, 'success');
+      // 预加载周边瓦片
+      preloadTiles();
+    });
+
+    state.map.on('error', (e) => {
+      console.warn('Map error:', e);
+    });
+
+    console.log('🗺️ 地图初始化完成');
+  } catch (err) {
+    console.error('❌ 地图初始化失败:', err);
+    showToast('地图初始化失败', 'error');
+  }
+}
+
+// 预加载瓦片优化性能
+function preloadTiles() {
+  if (!state.map) return;
   
-  const mapStyle = {
+  const center = state.map.getCenter();
+  const zoom = state.map.getZoom();
+  const tileCoords = state.map.project(center);
+  const tileX = Math.floor(tileCoords.x / 256);
+  const tileY = Math.floor(tileCoords.y / 256);
+  const z = Math.floor(zoom);
+  
+  // 预加载当前层级周边3x3区域的瓦片
+  const preloadRange = 1;
+  for (let dx = -preloadRange; dx <= preloadRange; dx++) {
+    for (let dy = -preloadRange; dy <= preloadRange; dy++) {
+      const preloadX = tileX + dx;
+      const preloadY = tileY + dy;
+      // 创建隐藏的img标签触发预加载
+      const img = new Image();
+      img.style.display = 'none';
+      img.src = defaultBasemap.url
+        .replace('{z}', z)
+        .replace('{x}', preloadX)
+        .replace('{y}', preloadY);
+      document.body.appendChild(img);
+      setTimeout(() => img.remove(), 5000);
+    }
+  }
+}
+
+function createMapStyle(basemap) {
+  const sourceId = 'basemap_' + basemap.name.replace(/\s+/g, '_');
+  
+  let tiles;
+  if (basemap.type === 'bing') {
+    tiles = [basemap.url];
+  } else if (basemap.type === 'wmts') {
+    tiles = [basemap.url];
+  } else {
+    tiles = [basemap.url];
+  }
+
+  return {
     version: 8,
     sources: {
-      'primary': {
+      [sourceId]: {
         type: 'raster',
-        tiles: source.tiles,
+        tiles: tiles,
         tileSize: 256
       }
     },
     layers: [
       {
-        id: 'primary',
+        id: sourceId,
         type: 'raster',
-        source: 'primary',
+        source: sourceId,
         minzoom: 0,
-        maxzoom: 18
+        maxzoom: 19
       }
     ]
   };
+}
 
-  state.map = new maplibregl.Map({
-    container: 'map',
-    style: mapStyle,
-    center: CONFIG.mapCenter,
-    zoom: CONFIG.mapZoom,
-    minZoom: CONFIG.minZoom,
-    maxZoom: CONFIG.maxZoom,
-    crossSourceErrors: true,
-    fadeDuration: 100,
-    trackResize: true,
-    refreshInterval: Infinity
-  });
-
-  state.map.on('error', (e) => {
-    console.warn('Map warning:', e.error?.message || 'Tile load error');
-  });
-
-  state.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
-  state.map.addControl(new maplibregl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
-
-  state.map.on('mousemove', (e) => {
-    document.getElementById('lngInput').value = e.lngLat.lng.toFixed(4);
-    document.getElementById('latInput').value = e.lngLat.lat.toFixed(4);
-  });
-
-  // 使用节流更新地图信息
-  let updateTicking = false;
-  const throttledUpdate = () => {
-    if (!updateTicking) {
-      requestAnimationFrame(() => {
-        updateMapInfo();
-        preloadAdjacentTiles(state.map);
-        updateTicking = false;
-      });
-      updateTicking = true;
-    }
-  };
-
-  state.map.on('moveend', throttledUpdate);
-  state.map.on('zoomend', throttledUpdate);
-  state.map.on('load', () => {
-    updateMapInfo();
-    preloadAdjacentTiles(state.map);
-    showToast(`地图加载完成 (${source.name})`, 'success');
-  });
+function switchBasemap(basemap) {
+  if (!state.map) return;
+  
+  try {
+    const style = createMapStyle(basemap);
+    state.map.setStyle(style);
+    state.map.once('load', () => {
+      showToast(`已切换到 ${basemap.name}`, 'success');
+    });
+  } catch (err) {
+    console.error('切换底图失败:', err);
+    showToast('切换底图失败', 'error');
+  }
 }
 
 function updateMapInfo() {
@@ -924,6 +964,278 @@ function updateMapInfo() {
   const center = state.map.getCenter();
   document.getElementById('zoomLevel').textContent = 'Z: ' + zoom;
   document.getElementById('mapCenter').textContent = center.lng.toFixed(2) + ', ' + center.lat.toFixed(2);
+}
+
+// ============ 图层管理 ============
+function showLayerManager() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h3>图层管理</h3>
+        <button class="close-btn" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="layer-actions">
+          <button class="mbtn" onclick="addGeoJSONLayer()"><i class="fas fa-plus"></i> 添加GeoJSON</button>
+          <button class="mbtn" onclick="addTileLayer()"><i class="fas fa-plus"></i> 添加瓦片图层</button>
+        </div>
+        <div class="layer-list" id="layerList">
+          ${renderLayerList()}
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function renderLayerList() {
+  const layers = state.layers || [];
+  if (layers.length === 0) {
+    return '<div class="empty-state"><i class="fas fa-layer-group"></i><p>暂无图层</p></div>';
+  }
+  
+  return layers.map((layer, index) => `
+    <div class="layer-item ${layer.visible ? '' : 'hidden'}">
+      <div class="layer-icon"><i class="fas ${layer.icon || 'fa-layer-group'}"></i></div>
+      <div class="layer-info">
+        <div class="layer-name">${layer.name}</div>
+        <div class="layer-type">${layer.type}</div>
+      </div>
+      <div class="layer-controls">
+        <button class="tbtn" onclick="toggleLayerVisibility(${index})" title="${layer.visible ? '隐藏' : '显示'}">
+          <i class="fas fa-eye${layer.visible ? '' : '-slash'}"></i>
+        </button>
+        <button class="tbtn" onclick="editLayerStyle(${index})" title="编辑样式">
+          <i class="fas fa-palette"></i>
+        </button>
+        <button class="tbtn" onclick="removeLayer(${index})" title="删除">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addGeoJSONLayer() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.geojson,.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
+      const text = await file.text();
+      const geojson = JSON.parse(text);
+      
+      const layerId = 'geojson_' + Date.now();
+      state.map.addSource(layerId, {
+        type: 'geojson',
+        data: geojson
+      });
+      
+      state.map.addLayer({
+        id: layerId,
+        type: 'fill',
+        source: layerId,
+        paint: {
+          'fill-color': '#7c5dfc',
+          'fill-opacity': 0.5
+        }
+      });
+      
+      state.layers.push({
+        id: layerId,
+        name: file.name,
+        type: 'GeoJSON',
+        icon: 'fa-code',
+        visible: true,
+        data: geojson
+      });
+      
+      showToast(`已添加图层: ${file.name}`, 'success');
+      document.getElementById('layerList').innerHTML = renderLayerList();
+    } catch (err) {
+      console.error('加载GeoJSON失败:', err);
+      showToast('加载GeoJSON失败', 'error');
+    }
+  };
+  input.click();
+}
+
+function addTileLayer() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h3>添加瓦片图层</h3>
+        <button class="close-btn" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-box">
+          <p>图层名称</p>
+          <input type="text" id="tileLayerName" placeholder="例如: 卫星影像" />
+          <p>瓦片URL (使用 {z}, {x}, {y} 作为占位符)</p>
+          <input type="text" id="tileLayerUrl" placeholder="https://example.com/{z}/{x}/{y}.png" />
+          <div class="modal-btns">
+            <button class="mbtn" onclick="this.closest('.modal-overlay').remove()">取消</button>
+            <button class="mbtn" style="background:#7c5dfc;color:#fff" onclick="confirmAddTileLayer()">添加</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function confirmAddTileLayer() {
+  const name = document.getElementById('tileLayerName').value.trim();
+  const url = document.getElementById('tileLayerUrl').value.trim();
+  
+  if (!name || !url) {
+    showToast('请填写完整信息', 'error');
+    return;
+  }
+  
+  try {
+    const layerId = 'tile_' + Date.now();
+    state.map.addSource(layerId, {
+      type: 'raster',
+      tiles: [url],
+      tileSize: 256
+    });
+    
+    state.map.addLayer({
+      id: layerId,
+      type: 'raster',
+      source: layerId
+    });
+    
+    state.layers.push({
+      id: layerId,
+      name: name,
+      type: '瓦片图层',
+      icon: 'fa-th-large',
+      visible: true,
+      url: url
+    });
+    
+    showToast(`已添加图层: ${name}`, 'success');
+    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('layerList').innerHTML = renderLayerList();
+  } catch (err) {
+    console.error('添加瓦片图层失败:', err);
+    showToast('添加瓦片图层失败', 'error');
+  }
+}
+
+function toggleLayerVisibility(index) {
+  const layer = state.layers[index];
+  if (!layer) return;
+  
+  layer.visible = !layer.visible;
+  state.map.setLayoutProperty(layer.id, 'visibility', layer.visible ? 'visible' : 'none');
+  
+  document.getElementById('layerList').innerHTML = renderLayerList();
+}
+
+function editLayerStyle(index) {
+  const layer = state.layers[index];
+  if (!layer) return;
+  
+  showToast('样式编辑功能开发中...', 'info');
+}
+
+function removeLayer(index) {
+  const layer = state.layers[index];
+  if (!layer) return;
+  
+  if (confirm(`确定要删除图层 "${layer.name}" 吗？`)) {
+    state.map.removeLayer(layer.id);
+    state.map.removeSource(layer.id);
+    state.layers.splice(index, 1);
+    
+    showToast(`已删除图层: ${layer.name}`, 'success');
+    document.getElementById('layerList').innerHTML = renderLayerList();
+  }
+}
+
+// ============ 快速检索功能 ============
+async function searchLocation(query) {
+  if (!query.trim()) return;
+  
+  showToast('正在搜索...', 'info');
+  
+  try {
+    // 尝试解析为坐标
+    const coordMatch = query.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+    if (coordMatch) {
+      const lng = parseFloat(coordMatch[1]);
+      const lat = parseFloat(coordMatch[2]);
+      if (lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) {
+        state.map.flyTo({ center: [lng, lat], zoom: 14 });
+        showToast(`定位到坐标: ${lng.toFixed(4)}, ${lat.toFixed(4)}`, 'success');
+        return;
+      }
+    }
+    
+    // 使用Nominatim进行地名搜索（免费OSM API）
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=zh-CN`
+    );
+    
+    if (!response.ok) throw new Error('搜索请求失败');
+    
+    const results = await response.json();
+    
+    if (results.length === 0) {
+      showToast('未找到相关地点', 'error');
+      return;
+    }
+    
+    // 显示搜索结果选择框
+    showSearchResults(results);
+    
+  } catch (err) {
+    console.error('搜索失败:', err);
+    showToast('搜索失败，请稍后重试', 'error');
+  }
+}
+
+function showSearchResults(results) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h3>搜索结果</h3>
+        <button class="close-btn" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="search-results">
+          ${results.map((r, i) => `
+            <div class="search-result-item" onclick="flyToSearchResult(${r.lon}, ${r.lat}, '${r.display_name.replace(/'/g, "\\'")}')">
+              <div class="result-icon"><i class="fas fa-map-marker-alt"></i></div>
+              <div class="result-info">
+                <div class="result-name">${r.display_name.split(',')[0]}</div>
+                <div class="result-address">${r.display_name}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function flyToSearchResult(lng, lat, name) {
+  state.map.flyTo({ center: [parseFloat(lng), parseFloat(lat)], zoom: 15 });
+  document.querySelector('.modal-overlay')?.remove();
+  showToast(`已定位到: ${name.split(',')[0]}`, 'success');
 }
 
 // ============ UI初始化 ============
@@ -946,21 +1258,6 @@ function initUI() {
   // 侧边栏切换
   document.getElementById('menuToggle').addEventListener('click', () => {
     document.getElementById('leftSidebar').classList.toggle('open');
-  });
-  document.getElementById('toggleRightPanel').addEventListener('click', () => {
-    document.getElementById('rightPanel').classList.toggle('hidden');
-  });
-
-  // 面板标签切换
-  document.querySelectorAll('.panel-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      const panel = tab.dataset.panel;
-      document.getElementById('layersPanel').style.display = panel === 'layers' ? 'block' : 'none';
-      document.getElementById('stylePanel').style.display = panel === 'style' ? 'block' : 'none';
-      document.getElementById('infoPanel').style.display = panel === 'info' ? 'block' : 'none';
-    });
   });
 
   // 搜索功能

@@ -15,6 +15,21 @@
       ]
     },
     {
+      "id": "layer-manager",
+      "label": "图层管理",
+      "icon": "fa-layer-group",
+      "children": [
+        { "id": "addGeoJSON", "label": "添加GeoJSON", "icon": "fa-code", "action": "addGeoJSON", "url": "", "description": "从URL或文件添加GeoJSON图层" },
+        { "id": "addTileLayer", "label": "添加瓦片图层", "icon": "fa-th-large", "action": "addTileLayer", "url": "", "description": "添加XYZ/WMS等瓦片服务" },
+        { "id": "addRaster", "label": "添加栅格图层", "icon": "fa-image", "action": "addRaster", "url": "", "description": "添加GeoTIFF等栅格数据" },
+        { "id": "layerList", "label": "图层列表", "icon": "fa-list", "action": "layerList", "url": "", "description": "查看和管理所有图层" },
+        { "id": "layerStyle", "label": "图层样式", "icon": "fa-palette", "action": "layerStyle", "url": "", "description": "设置图层颜色、透明度等" },
+        { "id": "layerOpacity", "label": "图层透明度", "icon": "fa-adjust", "action": "layerOpacity", "url": "", "description": "调整图层不透明度" },
+        { "id": "layerVisible", "label": "图层显隐", "icon": "fa-eye", "action": "layerVisible", "url": "", "description": "控制图层显示/隐藏" },
+        { "id": "layerDelete", "label": "删除图层", "icon": "fa-trash", "action": "layerDelete", "url": "", "description": "删除选中的图层" }
+      ]
+    },
+    {
       "id": "data-load",
       "label": "数据加载",
       "icon": "fa-database",
@@ -83,9 +98,17 @@
     }
   ],
   "basemaps": [
-    { "name": "CartoDB Positron", "url": "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png" },
-    { "name": "CartoDB Dark", "url": "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png" },
-    { "name": "OpenStreetMap", "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png" }
+    { "name": "OpenStreetMap-标准", "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png", "type": "xyz", "attribution": "&copy; OpenStreetMap contributors" },
+    { "name": "OpenStreetMap-热力", "url": "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", "type": "xyz", "attribution": "&copy; OpenStreetMap contributors, HOT" },
+    { "name": "天地图-矢量", "url": "https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}", "type": "wmts" },
+    { "name": "天地图-影像", "url": "https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}", "type": "wmts" },
+    { "name": "CartoDB-亮色", "url": "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", "type": "xyz", "attribution": "&copy; CARTO" },
+    { "name": "CartoDB-暗色", "url": "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", "type": "xyz", "attribution": "&copy; CARTO" },
+    { "name": "CartoDB-航海", "url": "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", "type": "xyz", "attribution": "&copy; CARTO" },
+    { "name": "Stamen-地形", "url": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "type": "xyz", "attribution": "&copy; Stamen Design, CC BY 3.0" },
+    { "name": "Stamen-水彩", "url": "https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.png", "type": "xyz", "attribution": "&copy; Stamen Design, CC BY 3.0" },
+    { "name": "Esri-卫星", "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "type": "xyz", "attribution": "&copy; Esri" },
+    { "name": "Esri-地形", "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", "type": "xyz", "attribution": "&copy; Esri" }
   ],
   "defaultConfig": {
     "mapCenter": [116.4, 39.9],
