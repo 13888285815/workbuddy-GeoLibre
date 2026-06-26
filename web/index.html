@@ -1351,6 +1351,7 @@ function getDefaultBasemaps() {
 function buildFlatNodes() {
   state.flatNodes = [];
   state.nodeMeta = new Map();
+  let leafSeq = 0; // 叶节点序号
   
   function traverse(items, depth = 0, path = []) {
     for (const item of items) {
@@ -1362,17 +1363,21 @@ function buildFlatNodes() {
       const prevMeta = state.nodeMeta.get(pathStr);
       const isOpen = prevMeta?.isOpen !== undefined ? prevMeta.isOpen : (depth < 2);
       
+      // 叶节点编号
+      const seq = !hasChildren ? ++leafSeq : 0;
+      
       const node = {
         ...item,
         depth,
         hasChildren,
         isOpen,
-        nodePath
+        nodePath,
+        seq
       };
       
       const nodeIndex = state.flatNodes.length;
       state.flatNodes.push(node);
-      state.nodeMeta.set(pathStr, { index: nodeIndex, item, isOpen });
+      state.nodeMeta.set(pathStr, { index: nodeIndex, item, isOpen, seq });
       
       // 递归处理子节点
       if (hasChildren) {
@@ -1382,7 +1387,7 @@ function buildFlatNodes() {
   }
   
   traverse(state.catalog);
-  console.log('[Tree] buildFlatNodes完成，总节点数:', state.flatNodes.length);
+  console.log('[Tree] buildFlatNodes完成，总节点数:', state.flatNodes.length, '叶节点:', leafSeq);
 }
 
 function initVirtualScroll() {
@@ -1500,7 +1505,7 @@ function createTreeNodeElement(node) {
   if (d.number !== false && !node.hasChildren) {
     const num = document.createElement('span');
     num.className = 'tree-number';
-    num.textContent = (state.nodeMeta.get(node.nodePath.join('/'))?.seq || '?') + '.';
+    num.textContent = node.seq + '.';
     label.appendChild(num);
   }
   
