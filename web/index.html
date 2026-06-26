@@ -1336,12 +1336,12 @@ function getDefaultCatalog() {
 
 function getDefaultBasemaps() {
   return [
-    { name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' },
-    { name: 'CartoDB亮色', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png' },
-    { name: 'CartoDB暗色', url: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png' },
-    { name: 'Esri卫星', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' },
-    { name: 'Esri街道', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}' },
-    { name: '天地图矢量', url: 'https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=YOUR_TK', type: 'wmts' },
+    { name: 'CartoDB亮色', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', speed: 'fast' },
+    { name: 'CartoDB暗色', url: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', speed: 'fast' },
+    { name: 'Esri街道', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', speed: 'fast' },
+    { name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', speed: 'normal' },
+    { name: 'Esri卫星', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', speed: 'slow' },
+    { name: '天地图矢量', url: 'https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=YOUR_TK', type: 'wmts', speed: 'slow' },
   ];
 }
 
