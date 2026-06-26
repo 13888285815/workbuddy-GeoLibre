@@ -1121,6 +1121,8 @@ async function detectUserLocation() {
    初始化
    ===================================================== */
 async function init() {
+  console.log('[Init] 开始初始化...');
+  
   // 初始化地点数据库
   placeDB.init(BUILTIN_PLACES);
   
@@ -1132,7 +1134,13 @@ async function init() {
   
   try {
     await loadCatalog();
+    console.log('[Init] 目录加载完成，节点数:', state.catalog.length);
+    
     buildFlatNodes();
+    console.log('[Init] 扁平化节点数:', state.flatNodes.length);
+    
+    // 先渲染树形
+    updateVisibleNodes();
     initVirtualScroll();
     document.getElementById('treeCount').textContent = state.flatNodes.length + '项';
     
@@ -1149,15 +1157,17 @@ async function init() {
     setTimeout(() => {
       expandAll();
       updateVisibleNodes();
+      console.log('[Init] 初始化完成');
     }, 100);
     
     showToast('已定位: ' + userLoc.name, 'success');
     
   } catch (e) {
-    console.error('初始化失败:', e);
+    console.error('[Init] 初始化失败:', e);
     state.catalog = getDefaultCatalog();
     state.basemaps = getDefaultBasemaps();
     buildFlatNodes();
+    updateVisibleNodes();
     initVirtualScroll();
     initMap();
   }
@@ -1343,59 +1353,66 @@ function buildFlatNodes() {
   state.nodeMeta = new Map();
   
   function traverse(items, depth = 0, path = []) {
-    let visibleCount = 0;
-    
     for (const item of items) {
       const nodePath = [...path, item.id];
-      const hasChildren = item.children?.length > 0;
-      const nodeIndex = state.flatNodes.length;
+      const pathStr = nodePath.join('/');
+      const hasChildren = item.children && item.children.length > 0;
       
-      state.flatNodes.push({
+      // 检查之前是否展开过
+      const prevMeta = state.nodeMeta.get(pathStr);
+      const isOpen = prevMeta?.isOpen !== undefined ? prevMeta.isOpen : (depth < 2);
+      
+      const node = {
         ...item,
         depth,
         hasChildren,
-        isOpen: state.nodeMeta.get(nodePath.join('/'))?.isOpen ?? (depth < 2), // 默认展开前2级
-        nodePath,
-        nodeIndex
-      });
+        isOpen,
+        nodePath
+      };
       
-      state.nodeMeta.set(nodePath.join('/'), { index: nodeIndex, item });
-      visibleCount++;
+      const nodeIndex = state.flatNodes.length;
+      state.flatNodes.push(node);
+      state.nodeMeta.set(pathStr, { index: nodeIndex, item, isOpen });
       
+      // 递归处理子节点
       if (hasChildren) {
-        const childMeta = traverse(item.children, depth + 1, nodePath);
-        const node = state.flatNodes[nodeIndex];
-        node.isOpen = state.nodeMeta.get(nodePath.join('/'))?.isOpen ?? (depth < 2);
-        visibleCount += node.isOpen ? childMeta.visibleCount : 0;
+        traverse(item.children, depth + 1, nodePath);
       }
-      visibleCount += state.nodeMeta.get(nodePath.join('/'))?.childVisible || 0;
     }
-    
-    return { visibleCount };
   }
   
   traverse(state.catalog);
+  console.log('[Tree] buildFlatNodes完成，总节点数:', state.flatNodes.length);
 }
 
 function initVirtualScroll() {
   const viewport = document.getElementById('treeViewport');
+  if (!viewport) {
+    console.error('[Tree] treeViewport不存在');
+    return;
+  }
   
   viewport.addEventListener('scroll', () => {
     state.scrollTop = viewport.scrollTop;
     requestAnimationFrame(updateVisibleNodes);
   });
   
-  // 初始化spacer高度
-  updateSpacerHeight();
-}
-
-function updateSpacerHeight() {
-  const spacer = document.getElementById('treeSpacer');
-  spacer.style.height = (state.flatNodes.length * CONFIG.treeNodeHeight) + 'px';
+  console.log('[Tree] 虚拟滚动已初始化');
 }
 
 function updateVisibleNodes() {
+  // 确保有数据
+  if (!state.flatNodes || state.flatNodes.length === 0) {
+    console.warn('[Tree] flatNodes为空，跳过渲染');
+    return;
+  }
+  
   const viewport = document.getElementById('treeViewport');
+  if (!viewport) {
+    console.warn('[Tree] treeViewport不存在');
+    return;
+  }
+  
   const viewportHeight = viewport.clientHeight;
   const scrollTop = state.scrollTop;
   
@@ -1405,36 +1422,54 @@ function updateVisibleNodes() {
     Math.ceil((scrollTop + viewportHeight) / CONFIG.treeNodeHeight) + CONFIG.treeBufferSize
   );
   
-  // 检查是否需要更新
-  if (startIndex === state.visibleStart && endIndex === state.visibleEnd) return;
+  // 检查是否需要更新（首次渲染时跳过检查）
+  if (state.visibleStart !== undefined && 
+      startIndex === state.visibleStart && 
+      endIndex === state.visibleEnd) return;
   state.visibleStart = startIndex;
   state.visibleEnd = endIndex;
+  
+  // 更新spacer高度
+  const spacer = document.getElementById('treeSpacer');
+  if (spacer) {
+    spacer.style.height = (state.flatNodes.length * CONFIG.treeNodeHeight) + 'px';
+  }
   
   // 构建可见节点
   const visibleNodes = state.flatNodes.slice(startIndex, endIndex);
   const topOffset = startIndex * CONFIG.treeNodeHeight;
   
   // 批量创建DOM
-  const container = document.getElementById('treeContainer') || createTreeContainer();
+  let container = document.getElementById('treeContainer');
+  if (!container) {
+    container = createTreeContainer();
+  }
   
   // 清空并重新渲染
   container.innerHTML = '';
   
-  for (const node of visibleNodes) {
+  for (let i = 0; i < visibleNodes.length; i++) {
+    const node = visibleNodes[i];
     const el = createTreeNodeElement(node);
     el.style.position = 'absolute';
-    el.style.top = (topOffset + visibleNodes.indexOf(node) * CONFIG.treeNodeHeight) + 'px';
+    el.style.top = (topOffset + i * CONFIG.treeNodeHeight) + 'px';
     el.style.left = '0';
     el.style.right = '0';
     container.appendChild(el);
   }
+  
+  console.log('[Tree] 渲染完成，可见节点:', visibleNodes.length, '总节点:', state.flatNodes.length);
 }
 
 function createTreeContainer() {
   const spacer = document.getElementById('treeSpacer');
+  if (!spacer) {
+    console.error('[Tree] treeSpacer不存在');
+    return document.createElement('div');
+  }
   const container = document.createElement('div');
   container.id = 'treeContainer';
-  container.style.cssText = 'position:relative;width:100%;';
+  container.style.cssText = 'position:relative;width:100%;height:' + (state.flatNodes.length * CONFIG.treeNodeHeight) + 'px;';
   spacer.appendChild(container);
   return container;
 }
