@@ -1144,9 +1144,6 @@ async function init() {
     initVirtualScroll();
     document.getElementById('treeCount').textContent = state.flatNodes.length + '项';
     
-    const userLoc = await detectUserLocation();
-    CONFIG.mapCenter = [userLoc.lon, userLoc.lat];
-    
     initMap();
     initSplitter();
     initKeyboard();
@@ -1160,7 +1157,12 @@ async function init() {
       console.log('[Init] 初始化完成');
     }, 100);
     
-    showToast('已定位: ' + userLoc.name, 'success');
+    // 并行检测位置，不影响地图加载
+    detectUserLocation().then(userLoc => {
+      CONFIG.mapCenter = [userLoc.lon, userLoc.lat];
+      state.map.flyTo({ center: [userLoc.lon, userLoc.lat], zoom: 10, duration: 1000 });
+      showToast('已定位: ' + userLoc.name, 'success');
+    });
     
   } catch (e) {
     console.error('[Init] 初始化失败:', e);
@@ -1170,6 +1172,11 @@ async function init() {
     updateVisibleNodes();
     initVirtualScroll();
     initMap();
+    initSplitter();
+    initKeyboard();
+    initSearchInput();
+    initTreeSearch();
+    setTimeout(() => { expandAll(); updateVisibleNodes(); }, 100);
   }
   
   // 内存监控
@@ -1896,7 +1903,15 @@ function showBasemapSelector() {
 function switchBasemap(index) {
   if (!state.basemaps[index]) return;
   state.currentBasemap = index;
-  state.map.setStyle(createStyle(state.basemaps[index]));
+  
+  // 不销毁地图状态，直接替换瓦片源 — 稳定、快速、保留所有图层/标记/事件
+  const src = state.map.getSource('basemap');
+  if (src) {
+    src.setTiles([state.basemaps[index].url]);
+  } else {
+    state.map.setStyle(createStyle(state.basemaps[index]));
+  }
+  
   closeModal('basemapModal');
   showToast('已切换: ' + state.basemaps[index].name);
 }
@@ -1982,6 +1997,7 @@ async function performSearch(query) {
   
   // 使用多个在线源
   const onlineSources = [
+    { name: '高德', url: `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(q)}&offset=5&key=54066b3bb68e022f6caef92bee26cd25&extensions=base` },
     { name: 'OSM', url: `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&accept-language=zh-CN` },
     { name: 'Komoot', url: `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5` }
   ];
@@ -1993,11 +2009,27 @@ async function performSearch(query) {
       });
       if (res.ok) {
         const data = await res.json();
-        const items = src.name === 'OSM' ? data : (data.features || []);
-        const osmResults = items.map(r => ({
-          lon: parseFloat(r.lon || r.geometry?.coordinates?.[0]),
-          lat: parseFloat(r.lat || r.geometry?.coordinates?.[1]),
-          name: (r.display_name || r.properties?.name || '').split(',').slice(0, 2).join(','),
+        let items = [];
+        if (src.name === '高德') {
+          items = (data.pois || []).map(p => ({
+            lon: parseFloat(p.location.split(',')[0]),
+            lat: parseFloat(p.location.split(',')[1]),
+            name: p.name || '',
+            address: (p.address || p.pname || '') + ',' + (p.cityname || ''),
+            type: p.type?.split(';')[0] || 'poi',
+            source: '高德'
+          }));
+        } else if (src.name === 'OSM') {
+          items = data.map(r => ({
+            lon: parseFloat(r.lon || 0),
+            lat: parseFloat(r.lat || 0),
+            name: (r.display_name || '').split(',').slice(0, 2).join(','),
+            address: (r.display_name || '').substring(0, 60),
+            type: getTypeLabel(r.type || 'poi'),
+            source: 'OSM'
+          }));
+        } else {
+          items = (data.features || []).map(r => ({
           address: (r.display_name || '').substring(0, 60) || r.properties?.name,
           type: getTypeLabel(r.type || r.properties?.osm_type || 'poi'),
           source: src.name
