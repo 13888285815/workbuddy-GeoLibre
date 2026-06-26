@@ -1945,6 +1945,7 @@ async function performSearch(query) {
   
   const q = query.trim();
   const results = [];
+  console.log('[Search] 开始搜索:', q);
   
   // 1. 坐标解析
   const coordMatch = q.match(/^(-?\d+\.?\d*)\s*[,，]\s*(-?\d+\.?\d*)$/);
@@ -1952,6 +1953,7 @@ async function performSearch(query) {
     const lng = parseFloat(coordMatch[1]);
     const lat = parseFloat(coordMatch[2]);
     if (lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) {
+      console.log('[Search] 坐标定位:', lng, lat);
       flyToPoint(lng, lat, 14);
       addSearchMarker(lng, lat, `坐标 ${lng.toFixed(4)}, ${lat.toFixed(4)}`);
       showToast('已定位坐标');
@@ -1961,28 +1963,43 @@ async function performSearch(query) {
   
   // 2. 内置数据库搜索（毫秒级）
   const builtinResults = placeDB.search(q);
+  console.log('[Search] 内置结果:', builtinResults.length);
   results.push(...builtinResults.map(p => ({ ...p, source: '内置' })));
   
-  // 3. 在线搜索
+  // 3. 在线搜索（使用代理或备用源）
   showToast('搜索中...');
   
-  try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=8&accept-language=zh-CN`, {
-      headers: { 'User-Agent': 'GeoLibre/1.0' }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const osmResults = data.map(r => ({
-        lon: parseFloat(r.lon),
-        lat: parseFloat(r.lat),
-        name: r.display_name.split(',').slice(0, 2).join(','),
-        address: r.display_name.substring(0, 60),
-        type: getTypeLabel(r.type),
-        source: 'OSM'
-      })).filter(r => r.lon && r.lat);
-      results.push(...osmResults);
+  // 使用多个在线源
+  const onlineSources = [
+    { name: 'OSM', url: `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&accept-language=zh-CN` },
+    { name: 'Komoot', url: `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5` }
+  ];
+  
+  for (const src of onlineSources) {
+    try {
+      const res = await fetch(src.url, {
+        headers: { 'User-Agent': 'GeoLibre/1.0' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const items = src.name === 'OSM' ? data : (data.features || []);
+        const osmResults = items.map(r => ({
+          lon: parseFloat(r.lon || r.geometry?.coordinates?.[0]),
+          lat: parseFloat(r.lat || r.geometry?.coordinates?.[1]),
+          name: (r.display_name || r.properties?.name || '').split(',').slice(0, 2).join(','),
+          address: (r.display_name || '').substring(0, 60) || r.properties?.name,
+          type: getTypeLabel(r.type || r.properties?.osm_type || 'poi'),
+          source: src.name
+        })).filter(r => r.lon && r.lat);
+        results.push(...osmResults);
+        if (osmResults.length > 0) break; // 优先使用有结果的源
+      }
+    } catch (e) {
+      console.log('[Search] ' + src.name + ' 失败:', e.message);
     }
-  } catch (e) {}
+  }
+  
+  console.log('[Search] 合并后结果:', results.length);
   
   // 去重
   const seen = new Set();
@@ -1994,6 +2011,8 @@ async function performSearch(query) {
       unique.push(r);
     }
   }
+  
+  console.log('[Search] 去重后:', unique.length);
   
   if (unique.length === 0) {
     showToast('未找到: ' + q, 'error');
@@ -2010,6 +2029,7 @@ async function performSearch(query) {
   });
   
   // 飞向第一个
+  console.log('[Search] 飞往:', unique[0].name, unique[0].lon, unique[0].lat);
   flyToPoint(unique[0].lon, unique[0].lat, 12);
 }
 
