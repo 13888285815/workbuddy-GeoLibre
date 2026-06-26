@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [feat/standalone-web-ui]
+    branches: [main, feat/standalone-web-ui]
   workflow_dispatch:
 
 permissions:
