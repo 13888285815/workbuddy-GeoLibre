@@ -1913,12 +1913,20 @@ function initSearchInput() {
   const clear = document.getElementById('searchClear');
   let timer = null;
   
+  console.log('[Search] initSearchInput 执行, input:', input);
+  
+  if (!input) {
+    console.error('[Search] searchInput 元素不存在!');
+    return;
+  }
+  
   input.addEventListener('input', () => {
     const val = input.value.trim();
     clear.classList.toggle('show', val.length > 0);
     
     clearTimeout(timer);
     timer = setTimeout(() => {
+      console.log('[Search] input事件触发, 值:', val);
       if (val.length >= 1) {
         performSearch(val);
       }
@@ -1928,9 +1936,12 @@ function initSearchInput() {
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       clearTimeout(timer);
+      console.log('[Search] Enter键按下');
       performSearch(input.value.trim());
     }
   });
+  
+  console.log('[Search] 事件监听器已绑定');
 }
 
 function clearSearch() {
