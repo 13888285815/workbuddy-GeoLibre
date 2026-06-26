@@ -1584,6 +1584,7 @@ function expandAll() {
       state.nodeMeta.set(node.nodePath.join('/'), { ...state.nodeMeta.get(node.nodePath.join('/') || {}), isOpen: true });
     }
   }
+  state.visibleStart = undefined;
   buildFlatNodes();
   updateSpacerHeight();
   updateVisibleNodes();
@@ -1594,6 +1595,7 @@ function collapseAll() {
   for (const node of state.flatNodes) {
     node.isOpen = false;
   }
+  state.visibleStart = undefined;
   buildFlatNodes();
   updateSpacerHeight();
   updateVisibleNodes();
@@ -1997,7 +1999,6 @@ async function performSearch(query) {
   
   // 使用多个在线源
   const onlineSources = [
-    { name: '高德', url: `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(q)}&offset=5&key=54066b3bb68e022f6caef92bee26cd25&extensions=base` },
     { name: 'OSM', url: `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&accept-language=zh-CN` },
     { name: 'Komoot', url: `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5` }
   ];
@@ -2010,16 +2011,7 @@ async function performSearch(query) {
       if (res.ok) {
         const data = await res.json();
         let items = [];
-        if (src.name === '高德') {
-          items = (data.pois || []).map(p => ({
-            lon: parseFloat(p.location.split(',')[0]),
-            lat: parseFloat(p.location.split(',')[1]),
-            name: p.name || '',
-            address: (p.address || p.pname || '') + ',' + (p.cityname || ''),
-            type: p.type?.split(';')[0] || 'poi',
-            source: '高德'
-          }));
-        } else if (src.name === 'OSM') {
+        if (src.name === 'OSM') {
           items = data.map(r => ({
             lon: parseFloat(r.lon || 0),
             lat: parseFloat(r.lat || 0),
@@ -2029,13 +2021,18 @@ async function performSearch(query) {
             source: 'OSM'
           }));
         } else {
+          // Komoot Photon
           items = (data.features || []).map(r => ({
-          address: (r.display_name || '').substring(0, 60) || r.properties?.name,
-          type: getTypeLabel(r.type || r.properties?.osm_type || 'poi'),
-          source: src.name
-        })).filter(r => r.lon && r.lat);
-        results.push(...osmResults);
-        if (osmResults.length > 0) break; // 优先使用有结果的源
+            lon: r.geometry?.coordinates?.[0] || 0,
+            lat: r.geometry?.coordinates?.[1] || 0,
+            name: r.properties?.name || r.properties?.city || r.properties?.country || '',
+            address: [r.properties?.city, r.properties?.country].filter(Boolean).join(', ').substring(0, 60),
+            type: getTypeLabel(r.properties?.osm_type || r.properties?.type || 'poi'),
+            source: 'Komoot'
+          })).filter(r => r.lon && r.lat);
+        }
+        results.push(...items);
+        if (items.length > 0) break;
       }
     } catch (e) {
       console.log('[Search] ' + src.name + ' 失败:', e.message);
