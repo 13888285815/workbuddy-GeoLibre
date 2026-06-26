@@ -1603,6 +1603,16 @@ function collapseAll() {
 }
 
 /* =====================================================
+   树形辅助
+   ===================================================== */
+function updateSpacerHeight() {
+  const spacer = document.getElementById('treeSpacer');
+  if (spacer) {
+    spacer.style.height = (state.flatNodes.length * CONFIG.treeNodeHeight) + 'px';
+  }
+}
+
+/* =====================================================
    树形搜索
    ===================================================== */
 function initTreeSearch() {
