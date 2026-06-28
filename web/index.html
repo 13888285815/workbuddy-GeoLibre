@@ -1262,6 +1262,25 @@ body{background:#0f1639;color:#e6e8f5}
   </div>
 </div>
 
+<!-- 地图导航弹窗 -->
+<div class="modal-overlay" id="navigationModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3><i class="fas fa-location-arrow"></i> 地图导航</h3>
+      <button class="modal-close" onclick="closeModal('navigationModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-desc">输入目标地点名称或坐标，快速导航到目标位置。</div>
+      <input type="text" class="modal-input" id="navTarget" placeholder="地点名称 / 经度,纬度">
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="btn btn-primary" onclick="doNavigate()" style="flex:1">导航至目标</button>
+        <button class="btn" onclick="navigateToCurrent()" style="flex:1">定位当前位置</button>
+      </div>
+      <div class="modal-desc" style="margin-top:12px">点击地图任意位置也可设置导航目标。</div>
+    </div>
+  </div>
+</div>
+
 <!-- 坐标定位弹窗 -->
 <div class="modal-overlay" id="locateModal">
   <div class="modal" style="max-width:400px">
@@ -1656,7 +1675,7 @@ async function init() {
     // 先渲染树形
     updateVisibleNodes();
     initVirtualScroll();
-    document.getElementById('treeCount').textContent = state.flatNodes.length + '项';
+    document.getElementById('treeCount').textContent = state.folderCount + ' 类 ' + state.leafCount + ' 项';
     
     initMap();
     initSplitter();
@@ -1716,6 +1735,24 @@ function loadDisplaySettings() {
   document.getElementById('disp-shortcut').checked = d.shortcut !== false;
   document.getElementById('disp-type').checked = d.type === true;
   document.getElementById('disp-coord').checked = d.coord === true;
+}
+
+
+function showTreeDisplaySettings() {
+  const d = state.treeDisplay || { number: true, icon: true, name: true, shortcut: true, type: false, coord: false };
+  
+  const modal = document.getElementById('treeDisplayModal');
+  if (!modal) return;
+  
+  // Populate checkboxes
+  const ids = ['disp-number', 'disp-icon', 'disp-name', 'disp-shortcut', 'disp-type', 'disp-coord'];
+  const keys = ['number', 'icon', 'name', 'shortcut', 'type', 'coord'];
+  for (let i = 0; i < ids.length; i++) {
+    const el = document.getElementById(ids[i]);
+    if (el) el.checked = !!d[keys[i]];
+  }
+  
+  modal.classList.add('show');
 }
 
 function applyTreeDisplay() {
@@ -1926,7 +1963,9 @@ function buildFlatNodes() {
   }
   
   traverse(state.catalog);
-  console.log('[Tree] buildFlatNodes完成，总节点数:', state.flatNodes.length, '叶节点:', leafSeq);
+  state.folderCount = state.catalog.length;
+  state.leafCount = leafSeq;
+  console.log('[Tree] buildFlatNodes完成，总节点数:', state.flatNodes.length, '分类:', state.folderCount, '叶节点:', state.leafCount);
 }
 
 function initVirtualScroll() {
@@ -2711,10 +2750,12 @@ function handleItemClick(item) {
     basemap: showBasemapSelector,
     locate: showLocateModal,
     fullscreen: toggleFullscreen,
+    navigation: showNavigationModal,
     measureDistance: () => startMeasure('distance'),
     measureArea: () => startMeasure('area'),
     addGeoJSON: promptGeoJSONUrl,
-    addTileLayer: promptTileUrl,
+    geojson: promptGeoJSONUrl,
+    addTileLayer: () => openTileTypeModal('XYZ'),
     layerList: showLayerPanel,
     layerStyle: showStylePanel,
     drawPoint: () => startDraw('point'),
@@ -2730,12 +2771,7 @@ function handleItemClick(item) {
     gpx: promptLocalFile,
     kml: promptLocalFile,
     addKML: promptLocalFile,
-    addRaster: () => promptTileUrl(),
-    mvt: () => promptTileUrl(),
-    raster: () => promptTileUrl(),
-    wmts: () => promptTileUrl(),
-    tms: () => promptTileUrl(),
-    arcgis: () => promptTileUrl(),
+    addRaster: () => openTileTypeModal('Raster'),
     exportGeoJSON: exportGeoJSON,
     exportPNG: exportMapImage,
     // 瓦片图层
@@ -2744,8 +2780,6 @@ function handleItemClick(item) {
     wmts: () => openTileTypeModal('WMTS'),
     tms: () => openTileTypeModal('TMS'),
     arcgis: () => openTileTypeModal('ArcGIS'),
-    addRaster: () => openTileTypeModal('Raster'),
-    addTileLayer: () => openTileTypeModal('XYZ'),
     
     // 空间分析
     overlay: () => openSpatialModal('overlay', '叠加分析', true),
@@ -3460,6 +3494,58 @@ function copyToClipboard(text) {
 /* =====================================================
    坐标定位
    ===================================================== */
+function showNavigationModal() {
+  document.getElementById('navTarget').value = '';
+  document.getElementById('navigationModal').classList.add('show');
+  document.getElementById('navTarget').focus();
+}
+
+function doNavigate() {
+  const input = document.getElementById('navTarget').value.trim();
+  if (!input) { showToast('请输入地点名称或坐标', 'warn'); return; }
+  
+  // 尝试解析为坐标 (lng,lat)
+  const coordMatch = input.match(/^(-?[\d.]+)\s*[,，]\s*(-?[\d.]+)$/);
+  if (coordMatch) {
+    const lng = parseFloat(coordMatch[1]);
+    const lat = parseFloat(coordMatch[2]);
+    if (isFinite(lng) && isFinite(lat) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      state.map.flyTo({ center: [lng, lat], zoom: 14, duration: 1200 });
+      closeModal('navigationModal');
+      showToast(`已导航至 ${lng.toFixed(4)}, ${lat.toFixed(4)}`);
+      return;
+    }
+  }
+  
+  // 尝试在数据库中搜索地点
+  const results = placeDB.search(input);
+  if (results.length > 0) {
+    const place = results[0];
+    state.map.flyTo({ center: [place.lon, place.lat], zoom: 12, duration: 1200 });
+    closeModal('navigationModal');
+    showToast(`已导航至 ${place.name}`);
+    return;
+  }
+  
+  showToast('未找到该地点，请尝试坐标格式（经度,纬度）', 'warn');
+}
+
+function navigateToCurrent() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const lng = pos.coords.longitude;
+      const lat = pos.coords.latitude;
+      state.map.flyTo({ center: [lng, lat], zoom: 15, duration: 1200 });
+      closeModal('navigationModal');
+      showToast('已定位当前位置');
+    }, () => {
+      showToast('无法获取位置，请检查浏览器定位权限', 'error');
+    }, { timeout: 8000, enableHighAccuracy: true });
+  } else {
+    showToast('浏览器不支持地理定位', 'error');
+  }
+}
+
 function showLocateModal() {
   const center = state.map.getCenter();
   document.getElementById('locateLng').value = center.lng.toFixed(4);
