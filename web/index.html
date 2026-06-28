@@ -2874,8 +2874,42 @@ function initMap() {
     document.getElementById('mapStatus').textContent = '离线';
   });
   
+  // 备用底图自动切换（国内网络 OSM 常被屏蔽）
+  initBasemapFallback();
+  
   state.map.on('click', handleMapClick);
   state.map.on('dblclick', handleMapDblClick);
+}
+
+/* =====================================================
+   备用底图自动切换（多级兜底）
+   ===================================================== */
+function initBasemapFallback(triedIndices = new Set()) {
+  let tilesReceived = 0;
+  
+  function onSourceData(e) {
+    if (e.sourceId === 'basemap' && e.dataType === 'source') {
+      tilesReceived++;
+    }
+  }
+  state.map.on('sourcedata', onSourceData);
+  
+  setTimeout(() => {
+    if (tilesReceived > 0) return;
+    state.map.off('sourcedata', onSourceData);
+    triedIndices.add(state.currentBasemap);
+    
+    for (let i = 1; i < state.basemaps.length; i++) {
+      const idx = (state.currentBasemap + i) % state.basemaps.length;
+      if (triedIndices.has(idx)) continue;
+      if (state.basemaps[idx].type === 'wmts') { triedIndices.add(idx); continue; }
+      switchBasemap(idx);
+      showToast('底图不可用，已自动切换: ' + state.basemaps[idx].name, 'warning');
+      initBasemapFallback(triedIndices);
+      return;
+    }
+    showToast('所有可用底图均无法加载', 'error');
+  }, 5000);
 }
 
 function createStyle(basemap) {
