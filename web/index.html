@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head> 
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>意念地球 - GeoLibre</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
@@ -836,6 +836,188 @@ body{background:#0f1639;color:#e6e8f5}
 .fav-drop-zone.show{display:block}
 .fav-drop-zone.drag-over{background:rgba(124,93,252,.08);border-color:var(--accent);color:var(--accent)}
 
+/* ====================================
+   响应式适配 - 移动端 <= 768px
+   ==================================== */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 100vw;
+  }
+
+  /* 顶部导航缩小 */
+  .top-bar {
+    height: 44px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .logo span { display: none; }
+  .logo i { font-size: 18px; }
+  .search-global { max-width: none; }
+  .search-global input { padding: 8px 36px 8px 32px; font-size: 13px; }
+  .top-btn { width: 30px; height: 30px; border-radius: 8px; font-size: 11px; }
+
+  /* 侧边栏 - 全宽叠加滑入 */
+  .sidebar {
+    position: fixed;
+    top: 44px;
+    left: 0;
+    bottom: 0;
+    width: 100vw;
+    z-index: 900;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  .sidebar:not(.collapsed) {
+    transform: translateX(0);
+  }
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 100vw;
+    border-right: none;
+  }
+  .sidebar-header { padding: 8px 10px 6px; }
+  .sidebar-header h3 { font-size: 12px; }
+  .tree-label {
+    font-size: 12px;
+    padding: 6px 8px;
+    min-height: 34px;
+  }
+  .tree-search { padding: 0 8px 8px; }
+  .tree-search input { padding: 6px 10px; font-size: 12px; }
+
+  /* 侧边栏遮罩 */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 44px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 899;
+  }
+  .sidebar-overlay.show { display: block; }
+
+  /* 地图容器占满 */
+  #map { flex: 1; }
+
+  /* 工具栏 - 可滚动 */
+  .toolbar {
+    height: 40px;
+    padding: 0 8px;
+    gap: 2px;
+    overflow-x: auto;
+  }
+  .tbtn { width: 28px; height: 28px; border-radius: 6px; font-size: 10px; }
+  .tool-sep { height: 14px; margin: 0 2px; }
+  .coord-display { display: none; }
+
+  /* 状态栏缩小 */
+  .status-bar { height: 24px; padding: 0 10px; font-size: 10px; gap: 8px; }
+
+  /* 底图网格 - 2列 */
+  .basemap-grid { grid-template-columns: repeat(2, 1fr); }
+  .basemap-item span { font-size: 10px; }
+  .basemap-preview { height: 40px; }
+
+  /* 搜索结果弹窗 - 全屏 */
+  .search-results { max-height: calc(100vh - 140px); }
+  .search-result-item { padding: 8px; }
+  .result-name { font-size: 12px; }
+  .result-icon { width: 28px; height: 28px; font-size: 12px; }
+
+  /* 所有弹窗 - 底部滑出 */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal {
+    width: 100%;
+    max-height: 85vh;
+    border-radius: 14px 14px 0 0;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .modal-header { padding: 12px 14px; }
+  .modal-header h3 { font-size: 14px; }
+  .modal-body { padding: 12px; }
+  .modal-close { padding: 8px; font-size: 16px; }
+
+  /* 底栏坐标显示 */
+  .status-bar span { font-size: 10px; }
+  #lngDisplay, #latDisplay { width: 50px; font-size: 9px; }
+  #zoomDisplay { font-size: 9px; }
+
+  /* 触摸目标增大 */
+  .tree-label { min-height: 44px; }
+  .sidebar-btn { min-width: 32px; min-height: 32px; }
+  .top-btn { min-width: 32px; min-height: 32px; }
+  .modal-btn { min-height: 40px; padding: 10px 16px; }
+  .modal-input { min-height: 40px; padding: 10px 12px; }
+  .tbtn { min-width: 32px; min-height: 32px; }
+
+  /* 右键菜单缩小 */
+  .context-menu { min-width: 140px; }
+  .context-menu-item { font-size: 11px; padding: 6px 10px; }
+
+  /* 搜索结果关闭按钮 */
+  .modal-close { width: 40px; height: 40px; }
+
+  /* 地图缩放控件移到右下角 */
+  .maplibregl-ctrl-top-right {
+    top: auto;
+    bottom: 80px;
+    right: 10px;
+  }
+
+  /* Toast 位置调整 */
+  .toast { bottom: 16px; right: 12px; left: 12px; text-align: center; }
+
+  /* 测量结果 */
+  .measure-result { bottom: 12px; padding: 8px 14px; font-size: 11px; }
+
+  /* 快捷键提示 */
+  .shortcut-hint { bottom: 50px; right: 10px; }
+
+  /* 图层列表 */
+  .layer-item { padding: 6px; }
+  .layer-item .layer-controls button { width: 28px; height: 28px; }
+
+  /* 时间面板 */
+  .time-panel { bottom: 50px; left: 8px; right: 80px; padding: 8px 12px; }
+
+  /* 瓦片类型网格 */
+  .tile-type-grid { grid-template-columns: repeat(2, 1fr); }
+  .tile-type-card { padding: 10px 8px; }
+}
+
+/* ====================================
+   响应式适配 - 平板 768px-1024px
+   ==================================== */
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root { --sidebar-width: 40vw; }
+  .top-bar { padding: 0 14px; }
+  .search-global { max-width: 360px; }
+  .modal { width: min(90%, 600px); }
+  .basemap-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ====================================
+   触屏设备优化
+   ==================================== */
+.touch-device .tree-label:hover { background: transparent; }
+.touch-device .top-btn:hover { background: rgba(255,255,255,.04); color: #c7d1f4; }
+.touch-device .tbtn:hover { background: rgba(255,255,255,.04); color: #c7d1f4; border-color: transparent; }
+.touch-device .sidebar-btn:hover { background: rgba(255,255,255,.04); color: #8f98c8; }
+.touch-device .basemap-item:hover { border-color: transparent; }
+.touch-device .search-result-item:hover { background: rgba(255,255,255,.03); }
+.touch-device .layer-item:hover { background: rgba(255,255,255,.03); }
+.touch-device .modal-btn:hover { background: var(--accent); }
+.touch-device .modal-btn.secondary:hover { background: rgba(255,255,255,.08); }
+
 </style>
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 </head>
@@ -1653,6 +1835,9 @@ async function detectUserLocation() {
 async function init() {
   console.log('[Init] 开始初始化...');
   
+  // 检测触屏设备
+  detectTouchDevice();
+  
   // 初始化地点数据库
   placeDB.init(BUILTIN_PLACES);
   
@@ -1678,6 +1863,7 @@ async function init() {
     document.getElementById('treeCount').textContent = state.folderCount + ' 类 ' + state.leafCount + ' 项';
     
     initMap();
+    initSidebarSwipe();
     initSplitter();
     initKeyboard();
     initSearchInput();
@@ -1705,6 +1891,7 @@ async function init() {
     updateVisibleNodes();
     initVirtualScroll();
     initMap();
+    initSidebarSwipe();
     initSplitter();
     initKeyboard();
     initSearchInput();
@@ -1714,6 +1901,16 @@ async function init() {
   
   // 内存监控
   setInterval(updateMemUsage, 30000);
+  
+  // 监听视口变化，自动同步侧边栏状态
+  window.addEventListener('resize', () => {
+    const sidebar = document.getElementById('sidebar');
+    if (!isMobileView()) {
+      const overlay = document.getElementById('sidebarOverlay');
+      if (overlay) overlay.classList.remove('show');
+      sidebar.style.transform = '';
+    }
+  });
 }
 
 /* =====================================================
@@ -2936,6 +3133,12 @@ function createStyle(basemap) {
 }
 
 function handleMapClick(e) {
+  // 移动端：点击地图关闭侧边栏
+  if (isMobileView() && state.sidebarOpen) {
+    toggleSidebar();
+    return;
+  }
+  
   if (state.measureMode) {
     state.measurePoints.push([e.lngLat.lng, e.lngLat.lat]);
     addMeasureMarker(e.lngLat);
@@ -3026,11 +3229,104 @@ function initKeyboard() {
 }
 
 /* =====================================================
-   侧边栏
+   触屏设备检测
    ===================================================== */
+function detectTouchDevice() {
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia('(pointer: coarse)').matches);
+  if (isTouch) {
+    document.body.classList.add('touch-device');
+  }
+  return isTouch;
+}
+
+/* =====================================================
+   侧边栏 - 增强版（移动端叠加+遮罩+滑动手势）
+   ===================================================== */
+function ensureSidebarOverlay() {
+  let overlay = document.getElementById('sidebarOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'sidebarOverlay';
+    overlay.className = 'sidebar-overlay';
+    overlay.addEventListener('click', () => {
+      if (state.sidebarOpen) toggleSidebar();
+    });
+    document.body.appendChild(overlay);
+  }
+  return overlay;
+}
+
+function isMobileView() {
+  return window.innerWidth <= 768;
+}
+
 function toggleSidebar() {
   state.sidebarOpen = !state.sidebarOpen;
-  document.getElementById('sidebar').classList.toggle('collapsed', !state.sidebarOpen);
+  const sidebar = document.getElementById('sidebar');
+  
+  if (isMobileView()) {
+    sidebar.classList.toggle('collapsed', !state.sidebarOpen);
+    const overlay = ensureSidebarOverlay();
+    if (state.sidebarOpen) { overlay.classList.add('show'); }
+    else { overlay.classList.remove('show'); }
+  } else {
+    sidebar.classList.toggle('collapsed', !state.sidebarOpen);
+  }
+}
+
+function initSidebarSwipe() {
+  const sidebar = document.getElementById('sidebar');
+  let touchStartX = 0;
+  let touchCurrentX = 0;
+  let swiping = false;
+  
+  sidebar.addEventListener('touchstart', (e) => {
+    if (!isMobileView()) return;
+    touchStartX = e.touches[0].clientX;
+    swiping = true;
+  }, { passive: true });
+  
+  sidebar.addEventListener('touchmove', (e) => {
+    if (!swiping || !isMobileView()) return;
+    touchCurrentX = e.touches[0].clientX;
+  }, { passive: true });
+  
+  sidebar.addEventListener('touchend', () => {
+    if (!swiping || !isMobileView()) { swiping = false; return; }
+    swiping = false;
+    const diff = touchCurrentX - touchStartX;
+    if (diff < -50 && state.sidebarOpen) {
+      // 左滑关闭侧边栏
+      toggleSidebar();
+    }
+  });
+  
+  // 地图区域右滑打开侧边栏
+  const map = document.getElementById('map');
+  let mapTouchStartX = 0;
+  let mapTouchCurrentX = 0;
+  let mapSwiping = false;
+  
+  map.addEventListener('touchstart', (e) => {
+    if (!isMobileView()) return;
+    mapTouchStartX = e.touches[0].clientX;
+    mapSwiping = true;
+  }, { passive: true });
+  
+  map.addEventListener('touchmove', (e) => {
+    if (!mapSwiping || !isMobileView()) return;
+    mapTouchCurrentX = e.touches[0].clientX;
+  }, { passive: true });
+  
+  map.addEventListener('touchend', () => {
+    if (!mapSwiping || !isMobileView()) { mapSwiping = false; return; }
+    mapSwiping = false;
+    const diff = mapTouchCurrentX - mapTouchStartX;
+    if (diff > 70 && !state.sidebarOpen && mapTouchStartX < 30) {
+      // 从左侧边缘右滑打开侧边栏
+      toggleSidebar();
+    }
+  });
 }
 
 /* =====================================================
@@ -3210,7 +3506,7 @@ function hideSearchHistory() {
 function selectSearchHistory(query) {
   document.getElementById('searchInput').value = query;
   document.getElementById('searchHistory').classList.remove('show');
-  performSearch();
+  performSearch(query);
 }
 
 function removeSearchHistory(query) {
@@ -3347,6 +3643,8 @@ function clearSearch() {
   document.getElementById('searchInput').value = '';
   document.getElementById('searchClear').classList.remove('show');
   document.getElementById('searchCount').classList.remove('show');
+  document.getElementById('searchModal').classList.remove('show');
+  document.getElementById('searchHistory').classList.remove('show');
   clearSearchMarkers();
 }
 
@@ -3375,91 +3673,113 @@ async function performSearch(query) {
     }
   }
   
-  // 2. 内置数据库搜索（毫秒级）
+  // 2. 内置数据库搜索（毫秒级）— 立即显示
   const builtinResults = placeDB.search(q);
   console.log('[Search] 内置结果:', builtinResults.length);
-  results.push(...builtinResults.map(p => ({ ...p, source: '内置' })));
+  const builtinMapped = builtinResults.map(p => ({ ...p, source: '内置' }));
   
-  // 3. 在线搜索（使用代理或备用源）
-  showToast('搜索中...');
-  
-  // 使用多个在线源
-  const onlineSources = [
-    { name: 'OSM', url: `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&accept-language=zh-CN` },
-    { name: 'Komoot', url: `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5` }
-  ];
-  
-  for (const src of onlineSources) {
-    try {
-      const res = await fetch(src.url, {
-        headers: { 'User-Agent': 'GeoLibre/1.0' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        let items = [];
-        if (src.name === 'OSM') {
-          items = data.map(r => ({
-            lon: parseFloat(r.lon || 0),
-            lat: parseFloat(r.lat || 0),
-            name: (r.display_name || '').split(',').slice(0, 2).join(','),
-            address: (r.display_name || '').substring(0, 60),
-            type: getTypeLabel(r.type || 'poi'),
-            source: 'OSM'
-          }));
-        } else {
-          // Komoot Photon
-          items = (data.features || []).map(r => ({
-            lon: r.geometry?.coordinates?.[0] || 0,
-            lat: r.geometry?.coordinates?.[1] || 0,
-            name: r.properties?.name || r.properties?.city || r.properties?.country || '',
-            address: [r.properties?.city, r.properties?.country].filter(Boolean).join(', ').substring(0, 60),
-            type: getTypeLabel(r.properties?.osm_type || r.properties?.type || 'poi'),
-            source: 'Komoot'
-          })).filter(r => r.lon && r.lat);
-        }
-        results.push(...items);
-        if (items.length > 0) break;
-      }
-    } catch (e) {
-      console.log('[Search] ' + src.name + ' 失败:', e.message);
-    }
+  // 立即显示内置结果
+  if (builtinMapped.length > 0) {
+    highlightTreeNode(q);
+    displaySearchResults(builtinMapped.slice(0, 12));
+    clearSearchMarkers();
+    builtinMapped.slice(0, 8).forEach((r, i) => {
+      addSearchMarker(r.lon, r.lat, r.name, i + 1);
+    });
+    flyToPoint(builtinMapped[0].lon, builtinMapped[0].lat, 12);
+    console.log('[Search] 内置结果显示完成');
+  } else {
+    showToast('搜索中...');
   }
   
-  console.log('[Search] 合并后结果:', results.length);
+  // 3. 在线搜索 — 并行请求，每路 5 秒超时
+  const fetchWithTimeout = (url, name, timeoutMs = 5000) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, {
+      headers: { 'User-Agent': 'GeoLibre/1.0' },
+      signal: controller.signal
+    })
+      .then(res => { clearTimeout(timer); return res; })
+      .catch(e => {
+        clearTimeout(timer);
+        console.log('[Search] ' + name + ' 请求失败/超时:', e.message);
+        return null;
+      });
+  };
   
-  // 去重
+  const onlineResults = [];
+  const osmPromise = fetchWithTimeout(
+    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&accept-language=zh-CN`,
+    'OSM'
+  ).then(async (res) => {
+    if (!res || !res.ok) return [];
+    return (await res.json()).map(r => ({
+      lon: parseFloat(r.lon || 0),
+      lat: parseFloat(r.lat || 0),
+      name: (r.display_name || '').split(',').slice(0, 2).join(','),
+      address: (r.display_name || '').substring(0, 60),
+      type: getTypeLabel(r.type || 'poi'),
+      source: 'OSM'
+    }));
+  });
+  
+  const komootPromise = fetchWithTimeout(
+    `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5`,
+    'Komoot'
+  ).then(async (res) => {
+    if (!res || !res.ok) return [];
+    return ((await res.json()).features || []).map(r => ({
+      lon: r.geometry?.coordinates?.[0] || 0,
+      lat: r.geometry?.coordinates?.[1] || 0,
+      name: r.properties?.name || r.properties?.city || r.properties?.country || '',
+      address: [r.properties?.city, r.properties?.country].filter(Boolean).join(', ').substring(0, 60),
+      type: getTypeLabel(r.properties?.osm_type || r.properties?.type || 'poi'),
+      source: 'Komoot'
+    })).filter(r => r.lon && r.lat);
+  });
+  
+  // 并行等待两个在线源（任一完成即可追加，不互相阻塞）
+  const [osmItems, komootItems] = await Promise.allSettled([osmPromise, komootPromise]);
+  const onlineNew = [
+    ...(osmItems.status === 'fulfilled' ? osmItems.value : []),
+    ...(komootItems.status === 'fulfilled' ? komootItems.value : [])
+  ];
+  console.log('[Search] 在线结果:', onlineNew.length, '(OSM:', osmItems.status, 'Komoot:', komootItems.status, ')');
+  
+  // 与已显示的内置结果合并去重后更新
+  const allResults = [...builtinMapped, ...onlineNew];
   const seen = new Set();
   const unique = [];
-  for (const r of results) {
+  for (const r of allResults) {
     const key = `${r.lon.toFixed(3)},${r.lat.toFixed(3)}`;
     if (!seen.has(key)) {
       seen.add(key);
       unique.push(r);
     }
   }
+  console.log('[Search] 去重后总计:', unique.length);
   
-  console.log('[Search] 去重后:', unique.length);
+  // 如果只有在线结果（没内置结果），此时才显示
+  if (builtinMapped.length === 0 && unique.length > 0) {
+    highlightTreeNode(q);
+    displaySearchResults(unique.slice(0, 12));
+    clearSearchMarkers();
+    unique.slice(0, 8).forEach((r, i) => {
+      addSearchMarker(r.lon, r.lat, r.name, i + 1);
+    });
+    flyToPoint(unique[0].lon, unique[0].lat, 12);
+  } else if (onlineNew.length > 0) {
+    // 追加在线结果到已有列表中
+    displaySearchResults(unique.slice(0, 12));
+    unique.slice(0, 8).forEach((r, i) => {
+      addSearchMarker(r.lon, r.lat, r.name, i + 1);
+    });
+  }
   
   if (unique.length === 0) {
     showToast('未找到"' + q + '"的结果，换个关键词试试？', 'error');
-    return;
   }
-  
-  // 树形联动：尝试在侧边栏高亮匹配节点
-  highlightTreeNode(q);
-  
-  // 显示结果
-  displaySearchResults(unique.slice(0, 12));
-  
-  // 地图标记
-  clearSearchMarkers();
-  unique.slice(0, 8).forEach((r, i) => {
-    addSearchMarker(r.lon, r.lat, r.name, i + 1);
-  });
-  
-  // 飞向第一个
-  console.log('[Search] 飞往:', unique[0].name, unique[0].lon, unique[0].lat);
-  flyToPoint(unique[0].lon, unique[0].lat, 12);
 }
 
 function getTypeLabel(type) {
