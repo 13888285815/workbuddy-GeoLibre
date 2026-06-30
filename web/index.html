@@ -1848,7 +1848,7 @@ function deleteBookmark(index) {
    ===================================================== */
 async function loadCatalog() {
   try {
-    const res = await fetch(CONFIG.catalogUrl);
+    const res = await fetch(CONFIG.catalogUrl + '?v=' + Date.now());
     if (res.ok) {
       const data = await res.json();
       state.catalog = data.catalog || [];
