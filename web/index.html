@@ -3,6 +3,8 @@
 <head> 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://webapi.amap.com https://t0.tianditu.gov.cn https://t1.tianditu.gov.cn https://t2.tianditu.gov.cn https://t3.tianditu.gov.cn https://t4.tianditu.gov.cn https://t5.tianditu.gov.cn https://t6.tianditu.gov.cn https://nominatim.openstreetmap.org https://photon.komoot.io https://api.mapbox.com https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src * data: blob:; connect-src *; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; worker-src blob:; child-src blob:; frame-src *;">
 <title>意念地球 - GeoLibre</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
@@ -1521,12 +1523,24 @@ body{background:#0f1639;color:#e6e8f5}
    ===================================================== */
 const CONFIG = {
   catalogUrl: './data/catalog.json',
-  mapCenter: [116.4, 39.9],
-  mapZoom: 10,
+  mapCenter: [0, 20],
+  mapZoom: 3,
   // 虚拟滚动配置
   treeNodeHeight: 40,
   treeBufferSize: 5, // 上下额外渲染的节点数
 };
+
+/* SECURITY: 以下密钥仅用于地图瓦片请求，已在对应控制台配置域名白名单 */
+const AMAP_KEY = '069de78f7ec38250a9cea1e48266f0db';
+const TIANDITU_TK = '16e7084c83dc314c026ae27676234394';
+
+/* SECURITY: HTML转义函数，用于防止XSS攻击 */
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 /* =====================================================
    状态管理
@@ -1807,7 +1821,7 @@ async function detectUserLocation() {
   
   // 2. IP定位
   try {
-    const res = await fetch('https://ipapi.co/json/', { timeout: 5000 });
+    const res = await fetch('https://ipapi.co/json/', { referrerPolicy: 'strict-origin-when-cross-origin' });
     if (res.ok) {
       const d = await res.json();
       if (d.latitude && d.longitude) {
@@ -2004,7 +2018,7 @@ function showBookmarkPanel() {
     list.innerHTML = state.bookmarks.map((b, i) => `
       <div class="bookmark-item" onclick="flyToBookmark(${i})">
         <i class="fas fa-bookmark" style="color:var(--accent)"></i>
-        <span class="bookmark-name">${b.name}</span>
+        <span class="bookmark-name">${escapeHtml(b.name)}</span>
         <span class="bookmark-coord">${b.lon.toFixed(2)}, ${b.lat.toFixed(2)}</span>
         <button class="bookmark-del" onclick="event.stopPropagation();deleteBookmark(${i})"><i class="fas fa-trash"></i></button>
       </div>
@@ -2045,7 +2059,7 @@ function deleteBookmark(index) {
    ===================================================== */
 async function loadCatalog() {
   try {
-    const res = await fetch(CONFIG.catalogUrl + '?v=' + Date.now());
+    const res = await fetch(CONFIG.catalogUrl + '?v=' + Date.now(), { referrerPolicy: 'strict-origin-when-cross-origin' });
     if (res.ok) {
       const data = await res.json();
       state.catalog = data.catalog || [];
@@ -2094,10 +2108,10 @@ function getDefaultBasemaps() {
     { name: 'Esri-卫星', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', type: 'xyz', attribution: '© Esri | 全球可用' },
     { name: 'Esri-街道', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', type: 'xyz', attribution: '© Esri | 全球可用' },
     { name: 'Esri-地形', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', type: 'xyz', attribution: '© Esri | 全球可用' },
-    { name: '高德-街道', url: 'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}&key=069de78f7ec38250a9cea1e48266f0db', type: 'xyz', attribution: '© 高德 | GCJ-02偏移~500m | 国内极速' },
-    { name: '高德-卫星', url: 'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}&key=069de78f7ec38250a9cea1e48266f0db', type: 'xyz', attribution: '© 高德 | GCJ-02偏移~500m | 国内极速' },
-    { name: '天地图-矢量', url: 'https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=16e7084c83dc314c026ae27676234394', type: 'xyz', attribution: '© 天地图 | CGCS2000 | 国内官方' },
-    { name: '天地图-影像', url: 'https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=16e7084c83dc314c026ae27676234394', type: 'xyz', attribution: '© 天地图 | CGCS2000 | 国内官方' },
+    { name: '高德-街道', url: 'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}&key=' + AMAP_KEY, type: 'xyz', attribution: '© 高德 | GCJ-02偏移~500m | 国内极速' },
+    { name: '高德-卫星', url: 'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}&key=' + AMAP_KEY, type: 'xyz', attribution: '© 高德 | GCJ-02偏移~500m | 国内极速' },
+    { name: '天地图-矢量', url: 'https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + TIANDITU_TK, type: 'xyz', attribution: '© 天地图 | CGCS2000 | 国内官方' },
+    { name: '天地图-影像', url: 'https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + TIANDITU_TK, type: 'xyz', attribution: '© 天地图 | CGCS2000 | 国内官方' },
     { name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', type: 'xyz', attribution: '© OpenStreetMap | 海外' },
     { name: 'OSM-热力', url: 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', type: 'xyz', attribution: '© OSM HOT | 海外' },
     { name: 'CartoDB-亮色', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', type: 'xyz', attribution: '© CARTO' },
@@ -2810,7 +2824,8 @@ async function checkLink(link) {
       method: 'HEAD',
       mode: 'cors',
       signal: controller.signal,
-      redirect: 'manual'
+      redirect: 'manual',
+      referrerPolicy: 'strict-origin-when-cross-origin'
     });
     
     clearTimeout(timeout);
@@ -2831,7 +2846,8 @@ async function checkLink(link) {
       await fetch(link.url, {
         method: 'GET',
         mode: 'no-cors',
-        signal: controller2.signal
+        signal: controller2.signal,
+        referrerPolicy: 'strict-origin-when-cross-origin'
       });
       
       clearTimeout(timeout2);
@@ -3347,10 +3363,12 @@ function showAttrPopup(e, feature) {
   } else {
     body.innerHTML = keys.map(k => {
       const val = props[k] !== undefined && props[k] !== null ? String(props[k]) : '';
+      const escapedKey = escapeHtml(k);
+      const escapedVal = escapeHtml(val);
       return `<div class="attr-row">
-        <span class="attr-key" title="${k}">${k}</span>
-        <span class="attr-val">${val}</span>
-        <button class="attr-copy" onclick="copySingleAttr('${k.replace(/'/g, "\\'")}', '${val.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" title="复制"><i class="fas fa-copy"></i></button>
+        <span class="attr-key" title="${escapedKey}">${escapedKey}</span>
+        <span class="attr-val">${escapedVal}</span>
+        <button class="attr-copy" onclick="copySingleAttr('${escapedKey.replace(/'/g, "\\'")}', '${escapedVal.replace(/'/g, "\\'")}')" title="复制"><i class="fas fa-copy"></i></button>
       </div>`;
     }).join('');
   }
@@ -3405,7 +3423,7 @@ function showLayerOpacity() {
   
   wrap.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:12px;color:#eef2ff;font-weight:600">透明度: ${sl.layer.name}</span>
+      <span style="font-size:12px;color:#eef2ff;font-weight:600">透明度: ${escapeHtml(sl.layer.name)}</span>
       <button onclick="document.getElementById('layerOpacitySlider').remove()" style="background:none;border:none;color:#7a89b8;cursor:pointer"><i class="fas fa-times"></i></button>
     </div>
     <div class="opacity-slider-wrap">
@@ -3487,12 +3505,14 @@ function showSearchHistory() {
   const el = document.getElementById('searchHistory');
   if (history.length === 0) { el.classList.remove('show'); return; }
   
-  let html = history.map(h => `
-    <div class="search-history-item" onclick="selectSearchHistory('${h.replace(/'/g, "\\'")}')">
-      <span class="hist-text"><i class="fas fa-history" style="margin-right:8px;color:#7a89b8"></i>${h}</span>
-      <button class="hist-del" onclick="event.stopPropagation();removeSearchHistory('${h.replace(/'/g, "\\'")}')"><i class="fas fa-times"></i></button>
+  let html = history.map(h => {
+    const escaped = escapeHtml(h);
+    return `
+    <div class="search-history-item" onclick="selectSearchHistory('${escaped.replace(/'/g, "\\'")}')">
+      <span class="hist-text"><i class="fas fa-history" style="margin-right:8px;color:#7a89b8"></i>${escaped}</span>
+      <button class="hist-del" onclick="event.stopPropagation();removeSearchHistory('${escaped.replace(/'/g, "\\'")}')"><i class="fas fa-times"></i></button>
     </div>
-  `).join('');
+  `}).join('');
   
   html += '<div class="search-history-clear" onclick="clearSearchHistory()">清除全部历史</div>';
   el.innerHTML = html;
@@ -3698,7 +3718,8 @@ async function performSearch(query) {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     return fetch(url, {
       headers: { 'User-Agent': 'GeoLibre/1.0' },
-      signal: controller.signal
+      signal: controller.signal,
+      referrerPolicy: 'strict-origin-when-cross-origin'
     })
       .then(res => { clearTimeout(timer); return res; })
       .catch(e => {
@@ -3804,12 +3825,12 @@ function displaySearchResults(results) {
   countEl.style.display = 'inline';
   
   container.innerHTML = results.map((r, i) => `
-    <div class="search-result-item" onclick="flyToSearchResult(${r.lon}, ${r.lat}, '${r.name.replace(/'/g, "\\'")}')">
+    <div class="search-result-item" onclick="flyToSearchResult(${r.lon}, ${r.lat}, '${escapeHtml(r.name).replace(/'/g, "\\'")}')">
       <div class="result-icon"><i class="fas fa-map-marker-alt"></i></div>
       <div class="result-info">
-        <div class="result-name">${r.name}</div>
-        <div class="result-address">${r.address || ''}</div>
-        <div class="result-source">${r.source} · ${r.type || '地点'}</div>
+        <div class="result-name">${escapeHtml(r.name)}</div>
+        <div class="result-address">${escapeHtml(r.address || '')}</div>
+        <div class="result-source">${escapeHtml(r.source)} · ${escapeHtml(r.type || '地点')}</div>
       </div>
       <div class="result-coord" onclick="event.stopPropagation();copyToClipboard('${r.lon.toFixed(4)}, ${r.lat.toFixed(4)}')">
         ${r.lon.toFixed(3)}, ${r.lat.toFixed(3)}
@@ -3949,8 +3970,8 @@ function showLayerPanel() {
       <div class="layer-item ${i === state.selectedLayerIndex ? 'selected' : ''}" onclick="selectLayerItem(${i})">
         <div class="layer-icon"><i class="fas fa-layer-group"></i></div>
         <div class="layer-info">
-          <div class="layer-name">${layer.name}</div>
-          <div class="layer-type">${layer.type} · ${layer.count || 0}要素</div>
+          <div class="layer-name">${escapeHtml(layer.name)}</div>
+          <div class="layer-type">${escapeHtml(layer.type)} · ${layer.count || 0}要素</div>
         </div>
         <div class="layer-controls">
           <button onclick="event.stopPropagation();toggleLayerVis(${i})" title="${layer.visible ? '隐藏' : '显示'}"><i class="fas fa-eye${layer.visible ? '' : '-slash'}"></i></button>
@@ -4181,7 +4202,7 @@ function promptGeoJSONUrl() {
 async function loadGeoJSONFromUrl(url) {
   try {
     showToast('加载中...');
-    const res = await fetch(url);
+    const res = await fetch(url, { referrerPolicy: 'strict-origin-when-cross-origin' });
     if (!res.ok) throw new Error('加载失败');
     const data = await res.json();
     const name = url.split('/').pop().replace(/\.(json|geojson)$/i, '') || 'GeoJSON';
@@ -4912,21 +4933,21 @@ function openSpatialModal(op, title, needsTwoLayers) {
     html += '<label style="font-size:11px;color:#9fb4d8;margin-bottom:4px;display:block">Layer A (subject)</label>';
     html += '<select class="spatial-layer-select" id="spatialLayerA">';
     geoLayers.forEach((l, i) => {
-      html += '<option value="' + i + '">' + l.name + ' (' + (l.data.features.length || 0) + ' features)</option>';
+      html += '<option value="' + i + '">' + escapeHtml(l.name) + ' (' + (l.data.features.length || 0) + ' features)</option>';
     });
     html += '</select>';
 
     html += '<label style="font-size:11px;color:#9fb4d8;margin-bottom:4px;display:block;margin-top:10px">Layer B</label>';
     html += '<select class="spatial-layer-select" id="spatialLayerB">';
     geoLayers.forEach((l, i) => {
-      html += '<option value="' + i + '">' + l.name + ' (' + (l.data.features.length || 0) + ' features)</option>';
+      html += '<option value="' + i + '">' + escapeHtml(l.name) + ' (' + (l.data.features.length || 0) + ' features)</option>';
     });
     html += '</select>';
   } else {
     html += '<label style="font-size:11px;color:#9fb4d8;margin-bottom:4px;display:block">Select layer</label>';
     html += '<select class="spatial-layer-select" id="spatialLayerA">';
     geoLayers.forEach((l, i) => {
-      html += '<option value="' + i + '">' + l.name + ' (' + (l.data.features.length || 0) + ' features)</option>';
+      html += '<option value="' + i + '">' + escapeHtml(l.name) + ' (' + (l.data.features.length || 0) + ' features)</option>';
     });
     html += '</select>';
   }
@@ -5119,7 +5140,7 @@ function showInlineStylePopup(field) {
       break;
 
     case 'dashArray':
-      inner += '<div class="inline-style-field"><label>Dash array: ' + sl.layer.name + '</label>';
+      inner += '<div class="inline-style-field"><label>Dash array: ' + escapeHtml(sl.layer.name) + '</label>';
       inner += '<input type="text" id="inlineDashArray" placeholder="e.g. 4,2 (dash, gap)" value="4,2" onchange="applyInlineDashArray(this.value)">';
       inner += '<div style="font-size:10px;color:#7a89b8;margin-top:4px">Format: dashLength, gapLength</div></div>';
       break;
@@ -5142,10 +5163,10 @@ function buildLabelOptions(sl) {
     return '<div style="font-size:12px;color:#9fb4d8;padding:8px">No attribute fields found</div>';
   }
 
-  let html = '<div class="inline-style-field"><label>Label field: ' + sl.layer.name + '</label><select id="inlineLabelField" onchange="applyInlineLabel(this.value)">';
+  let html = '<div class="inline-style-field"><label>Label field: ' + escapeHtml(sl.layer.name) + '</label><select id="inlineLabelField" onchange="applyInlineLabel(this.value)">';
   html += '<option value="">-- Remove label --</option>';
   keys.forEach(function(k) {
-    html += '<option value="' + k.replace(/\\'/g, '&#39;') + '">' + k + '</option>';
+    html += '<option value="' + k.replace(/\\'/g, '&#39;') + '">' + escapeHtml(k) + '</option>';
   });
   html += '</select></div>';
   return html;
@@ -5656,9 +5677,9 @@ function updateFavoritesList() {
   } else {
     if (dropZone) dropZone.classList.remove('show');
     list.innerHTML = state.favorites.map(function(f) {
-      return '<div class="fav-item" onclick="executeFavAction(' + JSON.stringify(f.id) + ')" title="' + (f.description || f.label) + '">'
-        + '<i class="fas ' + (f.icon || 'fa-star') + '"></i>'
-        + '<span class="fav-label">' + f.label + '</span>'
+      return '<div class="fav-item" onclick="executeFavAction(' + JSON.stringify(f.id) + ')" title="' + escapeHtml(f.description || f.label) + '">'
+        + '<i class="fas ' + escapeHtml(f.icon || 'fa-star') + '"></i>'
+        + '<span class="fav-label">' + escapeHtml(f.label) + '</span>'
         + '<button class="fav-remove" onclick="event.stopPropagation();removeFavorite(' + JSON.stringify(f.id) + ')"><i class="fas fa-times"></i></button>'
         + '</div>';
     }).join('');
