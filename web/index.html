@@ -331,6 +331,12 @@ body{background:#0f1639;color:#e6e8f5}
   color:#7a89b8;font-size:18px;
 }
 .basemap-item span{display:block;padding:5px;text-align:center;font-size:11px;color:#eef2ff}
+.basemap-item.disabled{opacity:.45;cursor:pointer}
+.basemap-item.disabled span{font-style:italic;color:#7a89b8}
+.basemap-item.basemap-toggle{cursor:pointer;text-align:center;grid-column:1/-1;border:none;background:rgba(255,255,255,.02);padding:8px}
+.basemap-item.basemap-toggle:hover{background:rgba(255,255,255,.06)}
+.basemap-item.basemap-toggle span{font-size:12px;color:#7a89b8}
+.basemap-separator{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.08);margin:2px 0}
 
 /* ========== 搜索结果 ========== */
 .search-results{max-height:450px;overflow-y:auto}
@@ -916,6 +922,8 @@ body{background:#0f1639;color:#e6e8f5}
 
   /* 状态栏缩小 */
   .status-bar { height: 24px; padding: 0 10px; font-size: 10px; gap: 8px; }
+  .status-bar span { font-size: 10px; }
+  #projectionStat, #viewStat, #zoomStat, #versionStamp { display: none; }
 
   /* 底图网格 - 2列 */
   .basemap-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1019,6 +1027,19 @@ body{background:#0f1639;color:#e6e8f5}
 .touch-device .layer-item:hover { background: rgba(255,255,255,.03); }
 .touch-device .modal-btn:hover { background: var(--accent); }
 .touch-device .modal-btn.secondary:hover { background: rgba(255,255,255,.08); }
+
+/* ====================================
+   3D地球视角切换按钮
+   ==================================== */
+.globe-toggle {
+  position: fixed; bottom: 28px; right: 80px; z-index: 2000;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(12,21,55,.9); border: 1px solid rgba(255,255,255,.15);
+  color: #eef2ff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; backdrop-filter: blur(10px); transition: all .2s;
+}
+.globe-toggle:hover { background: rgba(30,50,100,.9); }
+.globe-toggle.active { color: #7c5dfc; }
 
 </style>
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
@@ -1230,12 +1251,22 @@ body{background:#0f1639;color:#e6e8f5}
   <!-- 状态栏 -->
   <footer class="status-bar">
     <span><span class="status-dot" id="statusDot"></span><span id="mapStatus">加载中</span></span>
+    <span id="projectionStat">Globe</span>
+    <span id="coordStat">116.40°, 39.90°</span>
+    <span id="zoomStat">Z: 2</span>
+    <span id="viewStat">N 0° | ∠0°</span>
     <span id="layerCountStat">图层: 0</span>
     <span id="featureCountStat">要素: 0</span>
     <span id="memUsage"></span>
-    <span style="margin-left:auto;color:#7a89b8">意念地球 v2.0</span>
+    <span style="margin-left:auto;color:#7a89b8">意念地球 v2.1</span>
+    <span id="versionStamp" style="color:#5a6f9f;font-size:10px">250701.3</span>
   </footer>
 </div>
+
+<!-- 2D/3D视角切换浮动按钮 -->
+<button class="globe-toggle active" id="globeToggleBtn" onclick="toggleProjection()" title="切换2D平面">
+  <i class="fas fa-globe-americas"></i>
+</button>
 
 <!-- 底图选择弹窗 -->
 <div class="modal-overlay" id="basemapModal">
@@ -1494,6 +1525,7 @@ body{background:#0f1639;color:#e6e8f5}
   <div><span>底图</span><kbd>B</kbd></div>
   <div><span>图层</span><kbd>L</kbd></div>
   <div><span>搜索</span><kbd>/</kbd></div>
+  <div><span>旋转</span><kbd>Space</kbd></div>
   <div><span>关闭</span><kbd>Esc</kbd></div>
 </div>
 
@@ -1532,7 +1564,7 @@ const CONFIG = {
 
 /* SECURITY: 以下密钥仅用于地图瓦片请求，已在对应控制台配置域名白名单 */
 const AMAP_KEY = '069de78f7ec38250a9cea1e48266f0db';
-const TIANDITU_TK = '16e7084c83dc314c026ae27676234394';
+const TIANDITU_TK = '6c1641c0dec99c56624e45df9856cea6';
 
 /* SECURITY: HTML转义函数，用于防止XSS攻击 */
 function escapeHtml(str) {
@@ -1602,6 +1634,9 @@ const state = {
   
   // 阶段三: 3D地形
   terrain3dEnabled: false,
+  
+  // 投影模式跟踪（maplibre-gl 4.7.1未暴露getProjection/setProjection公共API）
+  currentProjection: 'globe',
   
   // 阶段三: 时间序列
   timeFilter: null,
@@ -2064,6 +2099,7 @@ async function loadCatalog() {
       const data = await res.json();
       state.catalog = data.catalog || [];
       state.basemaps = data.basemaps?.length ? data.basemaps : getDefaultBasemaps();
+      ensureAvailableBasemap();
       
       if (data.defaultConfig) {
         CONFIG.mapCenter = data.defaultConfig.mapCenter || CONFIG.mapCenter;
@@ -2082,6 +2118,7 @@ async function loadCatalog() {
   // 默认
   state.catalog = getDefaultCatalog();
   state.basemaps = getDefaultBasemaps();
+  ensureAvailableBasemap();
 }
 
 function getDefaultCatalog() {
@@ -2112,13 +2149,19 @@ function getDefaultBasemaps() {
     { name: '高德-卫星', url: 'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}&key=' + AMAP_KEY, type: 'xyz', attribution: '© 高德 | GCJ-02偏移~500m | 国内极速' },
     { name: '天地图-矢量', url: 'https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + TIANDITU_TK, type: 'xyz', attribution: '© 天地图 | CGCS2000 | 国内官方' },
     { name: '天地图-影像', url: 'https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + TIANDITU_TK, type: 'xyz', attribution: '© 天地图 | CGCS2000 | 国内官方' },
-    { name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', type: 'xyz', attribution: '© OpenStreetMap | 海外' },
-    { name: 'OSM-热力', url: 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', type: 'xyz', attribution: '© OSM HOT | 海外' },
+    { name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', type: 'xyz', attribution: '© OpenStreetMap | 海外', disabled: true },
+    { name: 'OSM-热力', url: 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', type: 'xyz', attribution: '© OSM HOT | 海外', disabled: true },
     { name: 'CartoDB-亮色', url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', type: 'xyz', attribution: '© CARTO' },
     { name: 'CartoDB-暗色', url: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', type: 'xyz', attribution: '© CARTO' },
     { name: 'CartoDB-航海', url: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', type: 'xyz', attribution: '© CARTO' },
-    { name: 'Stamen-地形', url: 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png', type: 'xyz', attribution: '© Stamen | CC BY 3.0' },
-    { name: 'Stamen-水彩', url: 'https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.png', type: 'xyz', attribution: '© Stamen | CC BY 3.0' },
+    { name: 'Stamen-地形', url: 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png', type: 'xyz', attribution: '© Stamen | CC BY 3.0', disabled: true },
+    { name: 'Stamen-水彩', url: 'https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.png', type: 'xyz', attribution: '© Stamen | CC BY 3.0', disabled: true },
+    { name: 'OpenTopoMap-地形', url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png', type: 'xyz', attribution: '© OpenTopoMap contributors', tileSize: 256, disabled: true },
+    { name: 'CyclOSM-骑行', url: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', type: 'xyz', attribution: '© CyclOSM contributors', tileSize: 256 },
+    { name: 'OpenRailwayMap-铁路', url: 'https://a.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', type: 'xyz', attribution: '© OpenRailwayMap contributors', tileSize: 256, disabled: true },
+    { name: 'NASA-GIBS卫星', url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-06-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg', type: 'xyz', attribution: '© NASA GIBS | TileCol/TileRow顺序与标准XYZ相反', tileSize: 256 },
+    { name: '百度-街道', url: 'https://maponline0.bdimg.com/tile/?qt=vtile&x={x}&y={y}&z={z}&styles=pl&scaler=1&udt=20230101', type: 'xyz', attribution: '© Baidu | BD-09坐标系偏移 | 国内参考', tileSize: 256, disabled: true },
+    { name: '腾讯-街道', url: 'https://rt0.map.gtimg.com/tile?z={z}&x={x}&y={-y}&type=vector', type: 'xyz', attribution: '© Tencent | GCJ-02坐标系偏移 | 国内参考', tileSize: 256, disabled: true },
   ];
 }
 
@@ -3069,7 +3112,14 @@ function initMap() {
     zoom: CONFIG.mapZoom,
     minZoom: 3,
     maxZoom: 18,
-    attributionControl: false
+    projection: 'globe',
+    attributionControl: false,
+    transformRequest: (url, resourceType) => {
+      if (resourceType === 'Tile' && url.includes('tianditu.gov.cn')) {
+        return { url: '/tile-proxy/?url=' + encodeURIComponent(url) };
+      }
+      return { url };
+    }
   });
   
   state.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
@@ -3088,6 +3138,27 @@ function initMap() {
   state.map.on('load', () => {
     document.getElementById('statusDot').className = 'status-dot';
     document.getElementById('mapStatus').textContent = '就绪';
+    
+    // 3D Globe: sky atmosphere
+    state.map.setSky({ 'sky-color': '#aad3ff', 'horizon-color': '#e0ecff', 'fog-color': '#c9ddff' });
+    
+    // 地形3D高度（移动端默认关闭地形节省性能）
+    if (!isMobileView()) {
+      try {
+        state.map.addSource('terrain-dem', {
+          type: 'raster-dem',
+          url: 'https://demotiles.maplibre.org/terrain-dem-v1.json',
+          tileSize: 256,
+          maxzoom: 14
+        });
+        state.map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
+        state.terrain3dEnabled = true;
+      } catch(e) { /* 地形加载失败不影响3D globe */ }
+    }
+    
+    // 地球自动旋转
+    state.spinEnabled = true;
+    spinGlobe();
   });
   
   state.map.on('error', () => {
@@ -3100,6 +3171,19 @@ function initMap() {
   
   state.map.on('click', handleMapClick);
   state.map.on('dblclick', handleMapDblClick);
+  
+  // 用户拖拽地图时暂停旋转，松手恢复
+  state.map.on('mousedown', pauseSpin);
+  state.map.on('mouseup', resumeSpin);
+  state.map.on('touchstart', pauseSpin);
+  state.map.on('touchend', resumeSpin);
+
+  // 状态栏实时更新
+  state.map.on('move', updateStatusBar);
+  state.map.on('zoom', updateStatusBar);
+  state.map.on('rotate', updateStatusBar);
+  state.map.on('pitch', updateStatusBar);
+  updateStatusBar();
 }
 
 /* =====================================================
@@ -3184,6 +3268,57 @@ function handleMapDblClick(e) {
 }
 
 /* =====================================================
+   3D地球自动旋转
+   ===================================================== */
+const SPIN_CONFIG = {
+  get secondsPerRevolution() { return isMobileView() ? 120 : 60; },
+  maxSpinZoom: 5,
+  slowSpinZoom: 3
+};
+
+function spinGlobe() {
+  if (!state.spinEnabled || !state.map) return;
+  const zoom = state.map.getZoom();
+  if (zoom < SPIN_CONFIG.maxSpinZoom) {
+    let distancePerSecond = 360 / SPIN_CONFIG.secondsPerRevolution;
+    if (zoom > SPIN_CONFIG.slowSpinZoom) {
+      const zoomDif = (SPIN_CONFIG.maxSpinZoom - zoom) / (SPIN_CONFIG.maxSpinZoom - SPIN_CONFIG.slowSpinZoom);
+      distancePerSecond *= zoomDif;
+    }
+    const center = state.map.getCenter();
+    center.lng -= distancePerSecond;
+    state.map.easeTo({ center, duration: 1000, easing: (n) => n });
+  }
+  state.spinTimer = setTimeout(spinGlobe, 1000);
+}
+
+function pauseSpin() {
+  if (state.spinTimer) { clearTimeout(state.spinTimer); state.spinTimer = null; }
+}
+
+function resumeSpin() {
+  if (state.spinEnabled) spinGlobe();
+}
+
+/* =====================================================
+   2D/3D视角切换
+   ===================================================== */
+function toggleProjection() {
+  if (!state.map) return;
+  const isGlobe = state.currentProjection === 'globe';
+  const newProj = isGlobe ? 'mercator' : 'globe';
+  try { state.map.setProjection(newProj); } catch(e) { /* v4.7.1 无 setProjection API，投影通过构造函数锁定 */ }
+  state.currentProjection = newProj;
+  const btn = document.getElementById('globeToggleBtn');
+  if (btn) {
+    btn.classList.toggle('active', !isGlobe);
+    btn.title = isGlobe ? '切换3D地球' : '切换2D平面';
+  }
+  showToast(isGlobe ? '已切换为2D平面视图' : '已切换为3D地球视图');
+  updateStatusBar();
+}
+
+/* =====================================================
    拖拽分隔条
    ===================================================== */
 function initSplitter() {
@@ -3234,7 +3369,8 @@ function initKeyboard() {
       '=': () => state.map?.zoomIn(),
       '-': () => state.map?.zoomOut(),
       '?': showShortcuts,
-      'escape': closeAllModals
+      'escape': closeAllModals,
+      ' ': () => { state.spinEnabled = !state.spinEnabled; if (state.spinEnabled) resumeSpin(); else pauseSpin(); showToast(state.spinEnabled ? '自动旋转: 开启' : '自动旋转: 暂停'); }
     };
     
     if (shortcuts[key]) {
@@ -3580,14 +3716,43 @@ function highlightTreeNode(label) {
    底图切换
    ===================================================== */
 function showBasemapSelector() {
-  const grid = document.getElementById('basemapGrid');
-  grid.innerHTML = state.basemaps.map((bm, i) => `
-    <div class="basemap-item ${i === state.currentBasemap ? 'active' : ''}" onclick="switchBasemap(${i})">
-      <div class="basemap-preview">🗺️</div>
-      <span>${bm.name}</span>
-    </div>
-  `).join('');
+  state.showAllBasemaps = state.showAllBasemaps || false;
+  renderBasemapGrid();
   document.getElementById('basemapModal').classList.add('show');
+}
+
+function renderBasemapGrid() {
+  const grid = document.getElementById('basemapGrid');
+  const showAll = state.showAllBasemaps;
+
+  let html = '';
+  state.basemaps.forEach((bm, i) => {
+    const isDisabled = bm.disabled === true;
+    if (!showAll && isDisabled) return;
+
+    const cls = [
+      'basemap-item',
+      i === state.currentBasemap ? 'active' : '',
+      isDisabled ? 'disabled' : ''
+    ].filter(Boolean).join(' ');
+
+    html += `<div class="${cls}" onclick="switchBasemap(${i})">
+      <div class="basemap-preview">🗺️</div>
+      <span>${bm.name}${isDisabled ? ' (备用)' : ''}</span>
+    </div>`;
+  });
+
+  html += `<div class="basemap-separator"></div>`;
+  html += `<div class="basemap-item basemap-toggle" onclick="toggleShowAllBasemaps()">
+    <span>${showAll ? '收起 ▲ 仅显示可用' : '显示全部(含备用) ▼'}</span>
+  </div>`;
+
+  grid.innerHTML = html;
+}
+
+function toggleShowAllBasemaps() {
+  state.showAllBasemaps = !state.showAllBasemaps;
+  renderBasemapGrid();
 }
 
 function switchBasemap(index) {
@@ -3608,6 +3773,16 @@ function switchBasemap(index) {
 
 function switchBasemapByIndex(index) {
   switchBasemap(index);
+}
+
+function ensureAvailableBasemap() {
+  if (state.currentBasemap === undefined || state.currentBasemap === null) {
+    state.currentBasemap = 0;
+  }
+  if (state.basemaps[state.currentBasemap]?.disabled) {
+    const firstAvailable = state.basemaps.findIndex(bm => !bm.disabled);
+    if (firstAvailable >= 0) state.currentBasemap = firstAvailable;
+  }
 }
 
 /* =====================================================
@@ -3656,6 +3831,8 @@ function initSearchInput() {
   
   input.addEventListener('blur', hideSearchHistory);
   
+  // 标记搜索已就绪
+  input.dataset.ready = 'true';
   console.log('[Search] 事件监听器已绑定');
 }
 
@@ -4834,6 +5011,33 @@ function updateMemUsage() {
   }
 }
 
+/* =====================================================
+   状态栏信息更新
+   ===================================================== */
+function updateStatusBar() {
+  if (!state.map) return;
+  const map = state.map;
+  const center = map.getCenter();
+  const zoom = map.getZoom();
+  const bearing = map.getBearing();
+  const pitch = map.getPitch();
+  const isGlobe = state.currentProjection === 'globe';
+
+  // 投影模式
+  document.getElementById('projectionStat').textContent = isGlobe ? 'Globe' : '平面';
+
+  // 坐标
+  document.getElementById('coordStat').textContent = center.lng.toFixed(4) + '°, ' + center.lat.toFixed(4) + '°';
+
+  // 缩放
+  document.getElementById('zoomStat').textContent = 'Z: ' + zoom.toFixed(1);
+
+  // 视角: 方位角 + 俯仰角
+  const bearingStr = bearing === 0 ? 'N' : bearing < 0 ? (360 + bearing).toFixed(0) + '°' : bearing.toFixed(0) + '°';
+  const pitchStr = pitch.toFixed(0) + '°';
+  document.getElementById('viewStat').textContent = bearingStr + ' | ∠' + pitchStr;
+}
+
 
 /* =====================================================
    阶段三: 瓦片图层扩展
@@ -5728,6 +5932,7 @@ function restoreAutoSave() {
     if (saved.mapCenter) CONFIG.mapCenter = saved.mapCenter;
     if (saved.mapZoom) CONFIG.mapZoom = saved.mapZoom;
     if (saved.currentBasemap !== undefined) state.currentBasemap = saved.currentBasemap;
+    ensureAvailableBasemap();
     if (saved.sidebarOpen !== undefined) state.sidebarOpen = saved.sidebarOpen;
     if (saved.treeDisplay) {
       for (var k in saved.treeDisplay) {
